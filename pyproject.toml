@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "forge"
+version = "0.1.0"
+description = "Fleet Offline Recognition & Ground-truth Engine — offline AV perception auto-labeling"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "FORGE Team" }]
+dependencies = [
+    "pydantic>=2.0,<3",
+    "pyarrow>=15.0",
+    "typer>=0.12",
+    "structlog>=24.0",
+    "pydantic-settings>=2.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+detect2d = []
+detect3d = []
+ray = []
+viz = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+]
+
+[project.scripts]
+forge = "forge.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/forge"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/forge"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+show_error_codes = true
+packages = ["forge"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "pyarrow.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=forge --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["forge"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

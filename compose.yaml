@@ -1,0 +1,16 @@
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: forge:0.1.0
+    entrypoint: ["forge"]
+    command: ["--help"]
+
+  # mlflow:
+  #   image: ghcr.io/mlflow/mlflow:v2.14.0
+  #   ports:
+  #     - "5000:5000"
+  #   command: mlflow server --host 0.0.0.0 --port 5000
+  #   volumes:
+  #     - ./mlruns:/mlruns
