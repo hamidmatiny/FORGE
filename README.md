@@ -58,7 +58,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 3 | `forge detect3d` — lidar 3D detection / BEV | ✅ |
 | 4 | `forge track` — multi-object tracking | ✅ |
 | 5 | `forge fuse` — multi-sensor fusion | ✅ |
-| 6 | `forge label` — active learning + pseudo-labeling, review queue | ⬜ |
+| 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ⬜ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ⬜ |
 | 9 | Distributed & cloud infra — Ray, Terraform S3/Athena | ⬜ |
@@ -151,6 +151,23 @@ projected boxes to camera detections by IoU (reusing Phase 4's Hungarian
 association code). Every row is tagged `matched`, `camera_only`, or
 `lidar_only` — nothing is silently dropped. See `PHASE_5_COMPLETION.md`.
 
+## Active Learning + Pseudo-Labeling
+
+```bash
+# No extra dependencies at all -- pure stdlib math
+forge label --auto-accept-threshold 0.7 --reject-threshold 0.3 --local
+```
+
+Scores every fused object with a trust score that rewards cross-modal
+agreement (a `matched` object gets the average of its camera + lidar
+confidence; a single-modality object gets its raw confidence discounted,
+since it lacks that cross-modal confirmation), then routes each one to
+`auto_accept`, `needs_review`, or `rejected`. `needs_review` rows carry a
+`review_priority` — binary entropy of the trust score, so a human reviewer
+can work the queue in order of "most valuable to look at first" (classic
+entropy/least-confidence active learning, applied to fused detections
+instead of raw model logits). See `PHASE_6_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -194,6 +211,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 3 completion](PHASE_3_COMPLETION.md)
 - [Phase 4 completion](PHASE_4_COMPLETION.md)
 - [Phase 5 completion](PHASE_5_COMPLETION.md)
+- [Phase 6 completion](PHASE_6_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

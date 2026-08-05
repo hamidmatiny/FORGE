@@ -11,6 +11,7 @@ from rich.console import Console
 from forge import __version__
 from forge.config import load_config, to_container
 from forge.ingest import ingest_nuscenes
+from forge.label.scoring import DEFAULT_SINGLE_MODALITY_DISCOUNT
 from forge.logging import log_cli_invocation
 from forge.settings import get_settings
 
@@ -25,7 +26,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "label": 6,
     "evaluate": 7,
     "curate": 8,
     "visualize": 10,
@@ -495,10 +495,93 @@ def fuse(
 
 @app.command()
 def label(
+    auto_accept_threshold: Annotated[
+        float,
+        typer.Option(
+            "--auto-accept-threshold", help="Trust score at or above which a label needs no review."
+        ),
+    ] = 0.7,
+    reject_threshold: Annotated[
+        float,
+        typer.Option("--reject-threshold", help="Trust score below which a label is rejected."),
+    ] = 0.3,
+    single_modality_discount: Annotated[
+        float,
+        typer.Option(
+            "--single-modality-discount",
+            help="Multiplier for camera_only/lidar_only trust (no cross-modal confirmation).",
+        ),
+    ] = DEFAULT_SINGLE_MODALITY_DISCOUNT,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
     """Active-learning selection + pseudo-label generation with confidence-gated review queue."""
-    _not_implemented("label", local=local)
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="label",
+        args={
+            "auto_accept_threshold": auto_accept_threshold,
+            "reject_threshold": reject_threshold,
+            "single_modality_discount": single_modality_discount,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    from forge.label import run_labeling
+    from forge.schemas import (
+        Detections2DTable,
+        Detections3DTable,
+        FusedObjectsTable,
+        PseudoLabelsTable,
+    )
+
+    fused_path = settings.data_lake_root / "fused_objects.parquet"
+    if not fused_path.exists():
+        console.print(
+            f"[red]Error:[/red] {fused_path} not found. Run 'forge fuse' first.", highlight=False
+        )
+        raise typer.Exit(code=1)
+
+    fused_objects = FusedObjectsTable.read_parquet(str(fused_path))
+    detections_2d = Detections2DTable.read_parquet(
+        str(settings.data_lake_root / "detections_2d.parquet")
+    )
+    detections_3d = Detections3DTable.read_parquet(
+        str(settings.data_lake_root / "detections_3d.parquet")
+    )
+
+    try:
+        labels = run_labeling(
+            fused_objects,
+            detections_2d,
+            detections_3d,
+            auto_accept_threshold=auto_accept_threshold,
+            reject_threshold=reject_threshold,
+            single_modality_discount=single_modality_discount,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}", highlight=False)
+        raise typer.Exit(code=1) from exc
+
+    output_path = settings.data_lake_root / "pseudo_labels.parquet"
+    PseudoLabelsTable.write_parquet(labels, str(output_path))
+
+    auto_accept = sum(1 for label_ in labels if label_.decision == "auto_accept")
+    needs_review = sum(1 for label_ in labels if label_.decision == "needs_review")
+    rejected = sum(1 for label_ in labels if label_.decision == "rejected")
+    console.print(
+        f"[green]OK[/green] wrote {len(labels)} pseudo-labels "
+        f"({auto_accept} auto-accept, {needs_review} needs-review, {rejected} rejected) "
+        f"-> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

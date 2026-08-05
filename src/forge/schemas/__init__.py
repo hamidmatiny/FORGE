@@ -7,6 +7,7 @@ from forge.schemas.detections_3d import Detection3DRecord, Detections3DTable
 from forge.schemas.ego_pose import EgoPoseRecord, EgoPoseTable
 from forge.schemas.frames import FrameRecord, FramesTable
 from forge.schemas.fused_objects import FusedObjectRecord, FusedObjectsTable
+from forge.schemas.pseudo_labels import PseudoLabelRecord, PseudoLabelsTable
 from forge.schemas.tracks import TrackRecord, TracksTable
 
 __all__ = [
@@ -23,6 +24,8 @@ __all__ = [
     "FramesTable",
     "FusedObjectRecord",
     "FusedObjectsTable",
+    "PseudoLabelRecord",
+    "PseudoLabelsTable",
     "SchemaVersion",
     "TrackRecord",
     "TracksTable",

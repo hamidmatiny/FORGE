@@ -157,11 +157,37 @@ detection ends up in exactly one row, tagged by how it was resolved.
 **Table class:** `forge.schemas.fused_objects.FusedObjectsTable`
 **Introduced:** Phase 5
 
+### `pseudo_labels` v1.0
+
+One row per fused object, scored and routed by the active-learning /
+pseudo-labeling policy.
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `pseudo_label_id` | `string` | yes | Unique identifier for this row (UUID) |
+| `fusion_id` | `string` | yes | Source `fused_objects.fusion_id` |
+| `scene_id` | `string` | yes | Scene this object belongs to |
+| `timestamp_us` | `int64` | yes | Sample timestamp (microseconds) |
+| `fusion_type` | `string` | yes | Carried through: `matched`/`camera_only`/`lidar_only` |
+| `class_id` | `int32` | yes | Class index |
+| `class_name` | `string` | yes | Human-readable class label |
+| `bbox_xyxy` | `fixed_size_list<double>[4]` | yes | Carried through from `fused_objects` |
+| `center_xyz` | `fixed_size_list<double>[3]` | yes | Carried through from `fused_objects` |
+| `dimensions_whl` | `fixed_size_list<double>[3]` | yes | Carried through from `fused_objects` |
+| `yaw` | `float32` | yes | Carried through from `fused_objects` |
+| `trust_score` | `float32` | yes | Cross-modal-agreement-adjusted confidence, `[0,1]` |
+| `decision` | `string` | yes | `auto_accept`, `needs_review`, or `rejected` |
+| `review_priority` | `float32` | yes | Binary entropy of `trust_score` — higher means review sooner |
+| `labeler_version` | `string` | yes | Labeling run/config identifier, e.g. `trust-threshold-v1` |
+
+**Pydantic model:** `forge.schemas.pseudo_labels.PseudoLabelRecord`
+**Table class:** `forge.schemas.pseudo_labels.PseudoLabelsTable`
+**Introduced:** Phase 6
+
 ## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
-- `pseudo_labels` — Phase 6
 - `eval_metrics` — Phase 7
 
 See [KNOWN_GAPS.md](../KNOWN_GAPS.md) for deferred work.

@@ -342,3 +342,41 @@ While writing `tests/test_fuse.py`:
 Neither of these was a defect in `forge.fuse` itself — both were caught by
 running the new tests and reading the failure output carefully rather than
 assuming a red test means the code is wrong.
+
+## Phase 6 — Active Learning + Pseudo-Labeling (2026-08-05)
+
+### ADR-018: Cross-modal agreement as the trust signal, entropy as review priority
+
+**Context:** This phase is the core of the whole "auto-labeling" premise —
+decide which fused objects are trustworthy enough to use as labels
+directly, which need a human to look at them, and which should be
+discarded, while also ranking the "needs a human" queue so reviewer time
+goes to the most valuable examples first.
+
+**Decision:** Two textbook active-learning ideas, applied to fused
+detections rather than raw model logits:
+1. **Trust score = cross-modal agreement.** A `matched` object (seen by
+   both camera and lidar detectors independently) gets the average of
+   both confidences. A single-modality object (`camera_only`/
+   `lidar_only`) gets its raw confidence multiplied by a discount
+   (`DEFAULT_SINGLE_MODALITY_DISCOUNT = 0.7`) since it lacks that
+   independent confirmation — this is "query by committee" in spirit,
+   with two sensor modalities standing in for committee members.
+2. **Review priority = binary entropy of the trust score.** Objects near
+   the decision boundary (trust score close to 0.5) carry the most
+   information if reviewed — the same intuition behind least-confidence /
+   entropy sampling. `run_labeling` looks the original per-modality
+   detection scores back up via `fused_objects`' `detection_id_2d`/
+   `detection_id_3d` fields rather than duplicating them into
+   `fused_objects` itself, keeping Phase 5's schema lean.
+
+No trained model, no extra dependencies at all for this phase — it's pure
+stdlib math (`math.log2`) over already-computed detector confidences.
+
+**Consequences:** The `0.7` discount factor and the `0.7`/`0.3` default
+thresholds are documented heuristics, not learned or calibrated against
+any labeled validation set (there isn't one yet — that's precisely the
+gap this pipeline exists to close). `rejected` rows are kept in the table,
+not silently dropped, so every routing decision is auditable. See
+KNOWN_GAPS.md for what this phase doesn't yet do (a reviewer UI to
+consume the queue, using track continuity as an additional trust signal).
