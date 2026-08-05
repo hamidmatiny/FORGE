@@ -1,0 +1,56 @@
+[
+  {
+    "token": "sd-1-cam",
+    "sample_token": "sample-1",
+    "ego_pose_token": "ep-1",
+    "calibrated_sensor_token": "cs-cam-front",
+    "filename": "samples/CAM_FRONT/scene0001_00.jpg",
+    "timestamp": 1533151603512404,
+    "is_key_frame": true
+  },
+  {
+    "token": "sd-1-lidar",
+    "sample_token": "sample-1",
+    "ego_pose_token": "ep-1",
+    "calibrated_sensor_token": "cs-lidar-top",
+    "filename": "samples/LIDAR_TOP/scene0001_00.pcd.bin",
+    "timestamp": 1533151603512404,
+    "is_key_frame": true
+  },
+  {
+    "token": "sd-1-lidar-sweep",
+    "sample_token": "sample-1",
+    "ego_pose_token": "ep-1",
+    "calibrated_sensor_token": "cs-lidar-top",
+    "filename": "sweeps/LIDAR_TOP/scene0001_00b.pcd.bin",
+    "timestamp": 1533151603612404,
+    "is_key_frame": false
+  },
+  {
+    "token": "sd-2-cam",
+    "sample_token": "sample-2",
+    "ego_pose_token": "ep-2",
+    "calibrated_sensor_token": "cs-cam-front",
+    "filename": "samples/CAM_FRONT/scene0001_01.jpg",
+    "timestamp": 1533151604012404,
+    "is_key_frame": true
+  },
+  {
+    "token": "sd-2-lidar",
+    "sample_token": "sample-2",
+    "ego_pose_token": "ep-2",
+    "calibrated_sensor_token": "cs-lidar-top",
+    "filename": "samples/LIDAR_TOP/scene0001_01.pcd.bin",
+    "timestamp": 1533151604012404,
+    "is_key_frame": true
+  },
+  {
+    "token": "sd-3-cam",
+    "sample_token": "sample-3",
+    "ego_pose_token": "ep-3",
+    "calibrated_sensor_token": "cs-cam-front",
+    "filename": "samples/CAM_FRONT/scene0002_00.jpg",
+    "timestamp": 1533151603512404,
+    "is_key_frame": true
+  }
+]

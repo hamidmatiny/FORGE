@@ -1,0 +1,5 @@
+[
+  {"token": "ep-1", "timestamp": 1533151603512404, "translation": [600.0, 1600.0, 0.0], "rotation": [0.99, 0.0, 0.0, 0.05]},
+  {"token": "ep-2", "timestamp": 1533151604012404, "translation": [600.5, 1600.2, 0.0], "rotation": [0.99, 0.0, 0.0, 0.05]},
+  {"token": "ep-3", "timestamp": 1533151603512404, "translation": [200.0, 900.0, 0.0], "rotation": [0.98, 0.0, 0.0, 0.10]}
+]

@@ -17,6 +17,7 @@ SYNTHETIC_FRAMES: list[FrameRecord] = [
         timestamp_us=1_700_000_000_000_000,
         sensor_id="CAM_FRONT",
         dataset_split="train",
+        data_path="samples/CAM_FRONT/scene-alpha_00.jpg",
         ingested_at=datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC),
     ),
     FrameRecord(
@@ -25,6 +26,7 @@ SYNTHETIC_FRAMES: list[FrameRecord] = [
         timestamp_us=1_700_000_050_000_000,
         sensor_id="LIDAR_TOP",
         dataset_split="train",
+        data_path="samples/LIDAR_TOP/scene-alpha_00.pcd.bin",
         ingested_at=datetime(2024, 1, 15, 12, 0, 0, 500000, tzinfo=UTC),
     ),
     FrameRecord(
@@ -33,6 +35,7 @@ SYNTHETIC_FRAMES: list[FrameRecord] = [
         timestamp_us=1_700_000_100_000_000,
         sensor_id="CAM_BACK",
         dataset_split="val",
+        data_path="samples/CAM_BACK/scene-beta_00.jpg",
         ingested_at=datetime(2024, 1, 15, 12, 0, 1, tzinfo=UTC),
     ),
 ]

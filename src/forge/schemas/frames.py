@@ -24,13 +24,17 @@ class FrameRecord(BaseModel):
         default="unknown",
         description="Dataset split label (train/val/test/unknown).",
     )
+    data_path: str = Field(
+        default="",
+        description="Path to the raw sensor file, relative to the dataset root.",
+    )
     ingested_at: datetime = Field(description="UTC timestamp when the row was written.")
 
 
 class FramesTable(BaseTable[FrameRecord]):
-    """Versioned frames table for Phase 0."""
+    """Versioned frames table."""
 
-    schema_version: ClassVar[SchemaVersion] = SchemaVersion(major=1, minor=0)
+    schema_version: ClassVar[SchemaVersion] = SchemaVersion(major=1, minor=1)
     table_name: ClassVar[str] = "frames"
     record_model: ClassVar[type[FrameRecord]] = FrameRecord
 
@@ -43,6 +47,7 @@ class FramesTable(BaseTable[FrameRecord]):
                 pa.field("timestamp_us", pa.int64(), nullable=False),
                 pa.field("sensor_id", pa.string(), nullable=False),
                 pa.field("dataset_split", pa.string(), nullable=False),
+                pa.field("data_path", pa.string(), nullable=False),
                 pa.field(
                     "ingested_at",
                     pa.timestamp("us", tz="UTC"),

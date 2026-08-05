@@ -14,7 +14,7 @@ Versioned Parquet schemas for the FORGE data lake. All pipeline stages read and 
 
 ## Tables
 
-### `frames` v1.0
+### `frames` v1.1
 
 One row per sensor sample timestamp in the data lake index.
 
@@ -25,17 +25,50 @@ One row per sensor sample timestamp in the data lake index.
 | `timestamp_us` | `int64` | yes | Sample timestamp (microseconds) |
 | `sensor_id` | `string` | yes | Sensor channel (e.g. `CAM_FRONT`) |
 | `dataset_split` | `string` | yes | Split label: train / val / test / unknown |
+| `data_path` | `string` | yes | Raw sensor file path, relative to the dataset root |
 | `ingested_at` | `timestamp[us, tz=UTC]` | yes | UTC write timestamp |
 
-**Pydantic model:** `forge.schemas.frames.FrameRecord`  
-**Table class:** `forge.schemas.frames.FramesTable`  
+**Pydantic model:** `forge.schemas.frames.FrameRecord`
+**Table class:** `forge.schemas.frames.FramesTable`
 **Introduced:** Phase 0
 
 #### Migrations
 
-_None yet._
+- **v1.0 → v1.1** (Phase 1): added `data_path` (non-nullable, defaults to `""`
+  for any pre-existing rows). Additive — no reader changes required.
 
-## Future Tables (not in Phase 0)
+### `calibration` v1.0
+
+One row per unique calibrated sensor (deduplicated across frames).
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `token` | `string` | yes | Unique calibrated-sensor identifier |
+| `sensor_id` | `string` | yes | Sensor channel |
+| `translation` | `fixed_size_list<double>[3]` | yes | Sensor-to-ego translation `[x, y, z]` |
+| `rotation` | `fixed_size_list<double>[4]` | yes | Sensor-to-ego quaternion `[w, x, y, z]` |
+| `camera_intrinsic` | `list<double>` | yes | Flattened 3x3 intrinsic matrix; empty for non-cameras |
+
+**Pydantic model:** `forge.schemas.calibration.CalibrationRecord`
+**Table class:** `forge.schemas.calibration.CalibrationTable`
+**Introduced:** Phase 1
+
+### `ego_pose` v1.0
+
+One row per unique vehicle pose (deduplicated across frames).
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `token` | `string` | yes | Unique ego-pose identifier |
+| `timestamp_us` | `int64` | yes | Pose timestamp (microseconds) |
+| `translation` | `fixed_size_list<double>[3]` | yes | Global-frame translation `[x, y, z]` |
+| `rotation` | `fixed_size_list<double>[4]` | yes | Global-frame quaternion `[w, x, y, z]` |
+
+**Pydantic model:** `forge.schemas.ego_pose.EgoPoseRecord`
+**Table class:** `forge.schemas.ego_pose.EgoPoseTable`
+**Introduced:** Phase 1
+
+## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
@@ -43,6 +76,7 @@ The following tables will be designed in their implementing phases — no stubs:
 - `detections_3d` — Phase 3
 - `tracks` — Phase 4
 - `fused_objects` — Phase 5
-- `eval_metrics` — Phase 6
+- `pseudo_labels` — Phase 6
+- `eval_metrics` — Phase 7
 
 See [KNOWN_GAPS.md](../KNOWN_GAPS.md) for deferred work.

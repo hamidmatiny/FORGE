@@ -1,0 +1,14 @@
+stages:
+  ingest:
+    cmd: >-
+      uv run forge ingest
+      --input-dir ${ingest.input_dir}
+      --split ${ingest.split}
+      --local
+    params:
+      - params.yaml:
+          - ingest.input_dir
+          - ingest.split
+    outs:
+      - data/lake:
+          persist: true

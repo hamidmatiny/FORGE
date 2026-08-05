@@ -1,0 +1,4 @@
+[
+  {"token": "sensor-cam-front", "channel": "CAM_FRONT", "modality": "camera"},
+  {"token": "sensor-lidar-top", "channel": "LIDAR_TOP", "modality": "lidar"}
+]

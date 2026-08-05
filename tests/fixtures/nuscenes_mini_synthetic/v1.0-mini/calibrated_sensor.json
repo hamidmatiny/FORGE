@@ -1,0 +1,16 @@
+[
+  {
+    "token": "cs-cam-front",
+    "sensor_token": "sensor-cam-front",
+    "translation": [1.5, 0.0, 1.5],
+    "rotation": [0.5, -0.5, 0.5, -0.5],
+    "camera_intrinsic": [[1266.4, 0.0, 816.3], [0.0, 1266.4, 491.5], [0.0, 0.0, 1.0]]
+  },
+  {
+    "token": "cs-lidar-top",
+    "sensor_token": "sensor-lidar-top",
+    "translation": [0.9, 0.0, 1.8],
+    "rotation": [1.0, 0.0, 0.0, 0.0],
+    "camera_intrinsic": []
+  }
+]

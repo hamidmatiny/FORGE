@@ -22,7 +22,7 @@ def test_schema_version_str() -> None:
 
 def test_frames_arrow_schema_field_count() -> None:
     schema = FramesTable.arrow_schema()
-    assert len(schema) == 6
+    assert len(schema) == 7
     assert schema.field("timestamp_us").type == pa.int64()
 
 
@@ -34,6 +34,7 @@ def test_round_trip_pydantic_arrow_pydantic() -> None:
             timestamp_us=1000,
             sensor_id="CAM_FRONT",
             dataset_split="train",
+            data_path="samples/CAM_FRONT/f1.jpg",
             ingested_at=datetime(2024, 6, 1, tzinfo=UTC),
         ),
     ]
@@ -50,6 +51,7 @@ def test_round_trip_parquet(tmp_path: Path) -> None:
             timestamp_us=1000,
             sensor_id="CAM_FRONT",
             dataset_split="train",
+            data_path="samples/CAM_FRONT/f1.jpg",
             ingested_at=datetime(2024, 6, 1, tzinfo=UTC),
         ),
         FrameRecord(
@@ -58,6 +60,7 @@ def test_round_trip_parquet(tmp_path: Path) -> None:
             timestamp_us=2000,
             sensor_id="LIDAR_TOP",
             dataset_split="val",
+            data_path="samples/LIDAR_TOP/f2.pcd.bin",
             ingested_at=datetime(2024, 6, 1, 0, 0, 1, tzinfo=UTC),
         ),
     ]

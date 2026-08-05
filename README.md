@@ -39,7 +39,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Foundation (package, schemas, CI, Docker) | ✅ |
-| 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ⬜ |
+| 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ✅ |
 | 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ⬜ |
 | 3 | `forge detect3d` — lidar 3D detection / BEV | ⬜ |
 | 4 | `forge track` — multi-object tracking | ⬜ |
@@ -69,6 +69,19 @@ forge visualize    # Phase 10
 
 Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md).
 
+## Ingest
+
+```bash
+# Real nuScenes-mini (see docs/runbooks/ingest-real-nuscenes.md to get the data)
+forge ingest --input-dir /path/to/nuscenes-mini --local
+
+# Or exercise it right now against the committed synthetic fixture:
+forge ingest --input-dir tests/fixtures/nuscenes_mini_synthetic --local
+```
+
+Only key-frame samples are ingested by default; pass `--all-sweeps` to include
+non-keyframe sweeps. `--local` is required until Phase 9 adds Ray execution.
+
 ## Configuration
 
 Environment variables use the `FORGE_` prefix:
@@ -94,6 +107,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 ## Docs
 
 - [Architecture + requirement coverage map](ARCHITECTURE.md)
+- [Phase 1 completion](PHASE_1_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

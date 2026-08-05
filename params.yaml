@@ -1,0 +1,3 @@
+ingest:
+  input_dir: /path/to/nuscenes-mini   # set to your local nuScenes-mini root
+  split: mini_train

@@ -9,6 +9,8 @@ import typer
 from rich.console import Console
 
 from forge import __version__
+from forge.config import load_config, to_container
+from forge.ingest import ingest_nuscenes
 from forge.logging import log_cli_invocation
 from forge.settings import get_settings
 
@@ -21,9 +23,8 @@ console = Console(stderr=True)
 
 KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
-# Phase assignments for unimplemented commands.
+# Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "ingest": 1,
     "detect2d": 2,
     "detect3d": 3,
     "track": 4,
@@ -70,10 +71,73 @@ def main(
 
 @app.command()
 def ingest(
+    input_dir: Annotated[
+        Path,
+        typer.Option("--input-dir", help="nuScenes root dir (contains <version>/*.json)."),
+    ],
+    version: Annotated[
+        str, typer.Option("--nuscenes-version", help="nuScenes version directory name.")
+    ] = "v1.0-mini",
+    split: Annotated[str, typer.Option("--split", help="Dataset split label to record.")] = (
+        "mini_train"
+    ),
+    all_sweeps: Annotated[
+        bool, typer.Option("--all-sweeps", help="Ingest non-keyframe sweeps too (Phase 1: off).")
+    ] = False,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Ingest logged sensor data into the versioned Parquet data lake."""
-    _not_implemented("ingest", local=local)
+    """Ingest a nuScenes-devkit-format dataset into the versioned Parquet data lake."""
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="ingest",
+        args={
+            "input_dir": str(input_dir),
+            "version": version,
+            "split": split,
+            "all_sweeps": all_sweeps,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    cfg = to_container(
+        load_config(
+            "ingest",
+            overrides=[
+                f"input_dir={input_dir}",
+                f"version={version}",
+                f"split={split}",
+                f"key_frames_only={not all_sweeps}",
+            ],
+        )
+    )
+
+    try:
+        result = ingest_nuscenes(
+            input_dir=Path(str(cfg["input_dir"])),
+            lake_root=settings.data_lake_root,
+            version=str(cfg["version"]),
+            split=str(cfg["split"]),
+            key_frames_only=bool(cfg["key_frames_only"]),
+        )
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error:[/red] {exc}", highlight=False)
+        raise typer.Exit(code=1) from exc
+
+    console.print(
+        f"[green]OK[/green] wrote {result.frames_written} frames, "
+        f"{result.calibration_written} calibration rows, "
+        f"{result.ego_poses_written} ego-pose rows "
+        f"across {result.scenes_seen} scene(s) -> {result.output_dir}",
+        highlight=False,
+    )
 
 
 @app.command("detect2d")

@@ -6,7 +6,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 
 | Item | Target Phase | Notes |
 |------|--------------|-------|
-| `forge ingest` | Phase 1 | nuScenes-mini ingestion into Parquet data lake |
+| `forge ingest` | Phase 1 | ✅ Done — nuScenes-devkit JSON layout, key-frames only by default |
 | `forge detect2d` | Phase 2 | 2D detection; requires `[detect2d]` extras (torch, lightning) |
 | `forge detect3d` | Phase 3 | 3D detection / BEV; requires `[detect3d]` extras |
 | `forge track` | Phase 4 | Multi-object tracking across frames |
@@ -19,10 +19,12 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge visualize` | Phase 10 | rerun.io / Foxglove MCAP / FiftyOne; requires `[viz]` extras |
 | Productionization docs/runbook | Phase 11 | Not started |
 | MLflow / W&B wiring | Phase 7 | Settings stub exists; no tracking yet |
-| Hydra pipeline configs | Phase 1+ | Using pydantic-settings only in Phase 0 |
-| DVC dataset versioning | Phase 1 | Not configured in Phase 0 |
-| LanceDB vector index | Phase 8 | Not configured in Phase 0 |
-| Real nuScenes fixture | Phase 1 | Synthetic `tests/fixtures/mini_lake/` until ingest lands |
+| Hydra pipeline configs | Phase 1 | ✅ Done — Compose API loader in `forge/config.py`, `conf/ingest.yaml` |
+| DVC dataset versioning | Phase 1 | ✅ Scaffolded — `dvc.yaml` ingest stage, local relative-path remote; no real data tracked yet (needs a real nuScenes-mini run, see `docs/runbooks/ingest-real-nuscenes.md`) |
+| LanceDB vector index | Phase 8 | Not configured |
+| Non-keyframe sweep ingestion | Phase 1+ | `--all-sweeps` flag exists and is tested, but downstream phases (2+) assume key-frames only until noted otherwise |
+| Incremental/append ingest | Phase 1+ | Current `forge ingest` overwrites the lake tables on every run; append/merge semantics deferred |
+| Real nuScenes-mini run | Manual | Never executed in CI (non-commercial license, ~4 GB); `tests/fixtures/nuscenes_mini_synthetic/` mirrors the real JSON layout for all automated tests |
 
 ## Schema Tables (not yet defined)
 

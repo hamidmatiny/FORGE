@@ -62,3 +62,72 @@ were updated to match. No Phase 0 code behavior changed — this is a planning-s
 **Decision:** `BaseTable` pairs a Pydantic record model with a PyArrow schema and provides `to_arrow` / `from_arrow` / `write_parquet` / `read_parquet`. Schema metadata embeds `forge.table` and `forge.schema_version`.
 
 **Consequences:** New tables require a version bump and migration note in `docs/schemas.md`.
+
+## Phase 1 — Ingest (2026-08-05)
+
+### ADR-007: nuScenes-devkit JSON layout as the ingest contract
+
+**Context:** Phase 1 needs a concrete raw-data format to ingest. The real
+nuScenes-mini dataset (~4 GB, non-commercial license) can't be downloaded in
+CI, but the pipeline shape (frames -> detect -> track -> fuse -> evaluate)
+needs a real, well-defined schema to build against rather than an invented
+one — Phase 7 evaluation depends on nuScenes ground truth using this same
+layout, so getting the ingest contract right now pays off later.
+
+**Decision:** `forge ingest` parses the standard nuScenes-devkit JSON tables
+(`scene`, `sample`, `sample_data`, `sensor`, `calibrated_sensor`, `ego_pose`)
+from `<input_dir>/<version>/*.json`. A synthetic fixture mirroring this exact
+layout (`tests/fixtures/nuscenes_mini_synthetic/`) is committed and used for
+all automated tests; the real dataset is never downloaded or committed. See
+`docs/runbooks/ingest-real-nuscenes.md` for running against real data.
+
+**Consequences:** Only key-frame `sample_data` rows are ingested by default
+(`--all-sweeps` opts in to sweeps). `forge ingest` overwrites the lake tables
+on every run — incremental/append semantics are deferred (see KNOWN_GAPS.md).
+
+### ADR-008: Two new tables — `calibration` and `ego_pose`
+
+**Context:** `frames` (Phase 0) only indexes sensor samples; it has no
+extrinsic/intrinsic calibration or vehicle pose, both of which Phase 2/3
+detection and Phase 5 fusion need.
+
+**Decision:** Add `calibration` (one row per unique calibrated sensor) and
+`ego_pose` (one row per unique pose), deduplicated across frames at ingest
+time rather than denormalized into every frame row. Also bump `frames` to
+v1.1, adding `data_path` (the raw sensor file path) — additive, so existing
+readers are unaffected.
+
+**Consequences:** Downstream phases join on `calibration.token` /
+`ego_pose.token`, not on denormalized columns in `frames`.
+
+### ADR-009: Hydra via the Compose API, not `@hydra.main`
+
+**Context:** `forge`'s CLI entry point is Typer. Hydra's usual
+`@hydra.main` decorator wants to own `argv` and the process entry point,
+which conflicts with Typer owning the command surface (ADR from Phase 0:
+Typer chosen for the CLI).
+
+**Decision:** Use Hydra's Compose API (`hydra.compose` /
+`initialize_config_dir`) inside `forge/config.py` to load `conf/*.yaml` and
+merge in explicit overrides built from Typer options. Hydra still owns
+config composition and override syntax; Typer still owns the command surface.
+
+**Consequences:** No Hydra multirun/sweep support yet — only single-config
+composition. Multirun would need its own ADR if a later phase needs it.
+
+### ADR-010: DVC scaffolding without a real dataset to track yet
+
+**Context:** KNOWN_GAPS.md flagged DVC dataset versioning as a Phase 1
+target, but no real nuScenes-mini data exists in this environment to track.
+
+**Decision:** `dvc init`, a local relative-path remote (`.dvc-storage/`,
+git-ignored — not a real S3 bucket; Phase 9 adds the Terraform-provisioned
+one), `params.yaml` for the ingest input path, and a `dvc.yaml` `ingest`
+stage wrapping `forge ingest`. Validated with `dvc dag`. `data/lake/` itself
+is not yet `dvc add`-ed — that only makes sense once a real ingest run
+exists locally, which is out-of-band per `docs/runbooks/ingest-real-nuscenes.md`.
+
+**Consequences:** `dvc repro ingest` / `dvc push` work once a user points
+`params.yaml`'s `ingest.input_dir` at a real local nuScenes-mini checkout.
+Nothing about this is exercised in CI.
+

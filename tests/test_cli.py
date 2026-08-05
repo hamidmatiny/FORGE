@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from forge.cli import app
@@ -33,19 +35,34 @@ def test_version_flag() -> None:
     assert "forge 0.1.0" in result.output
 
 
-def test_ingest_exits_nonzero_with_message() -> None:
-    result = runner.invoke(app, ["ingest"])
+def test_ingest_requires_input_dir() -> None:
+    result = runner.invoke(app, ["ingest", "--local"])
+    assert result.exit_code != 0
+    assert "input-dir" in result.output.lower() or "input_dir" in result.output.lower()
+
+
+def test_ingest_requires_local_flag() -> None:
+    result = runner.invoke(app, ["ingest", "--input-dir", "tests/fixtures/nuscenes_mini_synthetic"])
     assert result.exit_code == 1
-    assert "not implemented until Phase 1" in result.output
-    assert "KNOWN_GAPS.md" in result.output
+    assert "Phase 9" in result.output
+
+
+def test_ingest_succeeds_against_synthetic_fixture(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--input-dir",
+            "tests/fixtures/nuscenes_mini_synthetic",
+            "--local",
+        ],
+        env={"FORGE_DATA_LAKE_ROOT": str(tmp_path)},
+    )
+    assert result.exit_code == 0
+    assert "wrote 5 frames" in result.output
 
 
 def test_detect2d_exits_nonzero() -> None:
     result = runner.invoke(app, ["detect2d"])
     assert result.exit_code == 1
     assert "Phase 2" in result.output
-
-
-def test_local_flag_accepted() -> None:
-    result = runner.invoke(app, ["ingest", "--local"])
-    assert result.exit_code == 1

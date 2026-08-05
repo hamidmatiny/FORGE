@@ -1,0 +1,4 @@
+[
+  {"token": "scene-0001", "log_token": "log-1", "name": "scene-0001", "description": "synthetic: straight urban road", "nbr_samples": 2, "first_sample_token": "sample-1", "last_sample_token": "sample-2"},
+  {"token": "scene-0002", "log_token": "log-2", "name": "scene-0002", "description": "synthetic: parking lot", "nbr_samples": 1, "first_sample_token": "sample-3", "last_sample_token": "sample-3"}
+]

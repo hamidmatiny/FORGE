@@ -1,0 +1,5 @@
+[
+  {"token": "sample-1", "scene_token": "scene-0001", "timestamp": 1533151603512404, "prev": "", "next": "sample-2"},
+  {"token": "sample-2", "scene_token": "scene-0001", "timestamp": 1533151604012404, "prev": "sample-1", "next": ""},
+  {"token": "sample-3", "scene_token": "scene-0002", "timestamp": 1533151603512404, "prev": "", "next": ""}
+]

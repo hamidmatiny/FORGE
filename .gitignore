@@ -36,3 +36,4 @@ mlruns/
 
 # uv
 # uv.lock is committed
+.dvc-storage/

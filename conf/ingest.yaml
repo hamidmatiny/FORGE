@@ -1,0 +1,7 @@
+# Phase 1 ingest defaults. Override any key from the CLI, e.g.:
+#   forge ingest --input-dir /path/to/nuscenes --set split=mini_val
+input_dir: null            # path to a nuScenes-mini root (contains v1.0-mini/)
+version: v1.0-mini
+split: mini_train
+key_frames_only: true      # skip non-keyframe sweeps in Phase 1
+sensors: null               # null = ingest all sensor channels; else a list of channel names
