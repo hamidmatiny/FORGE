@@ -22,7 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-detect2d = []
+detect2d = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "lightning>=2.0",
+]
 detect3d = []
 ray = []
 viz = []
@@ -70,6 +74,10 @@ mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = "pyarrow.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

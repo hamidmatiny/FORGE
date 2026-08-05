@@ -40,7 +40,7 @@ mapping of each phase to the requirement it's built to satisfy.
 |-------|-------|--------|
 | 0 | Foundation (package, schemas, CI, Docker) | ✅ |
 | 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ✅ |
-| 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ⬜ |
+| 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ✅ |
 | 3 | `forge detect3d` — lidar 3D detection / BEV | ⬜ |
 | 4 | `forge track` — multi-object tracking | ⬜ |
 | 5 | `forge fuse` — multi-sensor fusion | ⬜ |
@@ -68,6 +68,24 @@ forge visualize    # Phase 10
 ```
 
 Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md).
+
+## Detection
+
+```bash
+# Install the heavy extras first (torch, torchvision, lightning)
+uv sync --extra detect2d --dev
+
+# Train a checkpoint (CPU, synthetic data — smoke-tests the training loop)
+forge detect2d --mode train --max-steps 10 --output-checkpoint checkpoints/detect2d.pt --local
+
+# Run inference over the camera frames already in the lake (needs 'forge ingest' first)
+forge detect2d --mode infer --checkpoint checkpoints/detect2d.pt \
+  --images-root /path/to/nuscenes-mini --local
+```
+
+Without `--checkpoint`, infer mode runs a freshly initialized (untrained)
+model — useful to smoke-test the pipeline shape, not to get real detections.
+See `PHASE_2_COMPLETION.md` for what this phase does and doesn't claim.
 
 ## Ingest
 
@@ -108,6 +126,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 
 - [Architecture + requirement coverage map](ARCHITECTURE.md)
 - [Phase 1 completion](PHASE_1_COMPLETION.md)
+- [Phase 2 completion](PHASE_2_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

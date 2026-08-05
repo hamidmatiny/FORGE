@@ -68,11 +68,28 @@ One row per unique vehicle pose (deduplicated across frames).
 **Table class:** `forge.schemas.ego_pose.EgoPoseTable`
 **Introduced:** Phase 1
 
+### `detections_2d` v1.0
+
+One row per predicted 2D bounding box (camera frames only).
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `detection_id` | `string` | yes | Unique detection identifier (UUID) |
+| `frame_id` | `string` | yes | `frames.frame_id` this detection belongs to |
+| `class_id` | `int32` | yes | Predicted class index |
+| `class_name` | `string` | yes | Human-readable class label |
+| `score` | `float32` | yes | Model confidence, `[0, 1]` |
+| `bbox_xyxy` | `fixed_size_list<double>[4]` | yes | `[x1, y1, x2, y2]` in pixel coordinates |
+| `model_version` | `string` | yes | Checkpoint identifier, or `untrained-random-init` |
+
+**Pydantic model:** `forge.schemas.detections_2d.Detection2DRecord`
+**Table class:** `forge.schemas.detections_2d.Detections2DTable`
+**Introduced:** Phase 2
+
 ## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
-- `detections_2d` — Phase 2
 - `detections_3d` — Phase 3
 - `tracks` — Phase 4
 - `fused_objects` — Phase 5

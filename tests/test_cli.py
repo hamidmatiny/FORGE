@@ -62,7 +62,19 @@ def test_ingest_succeeds_against_synthetic_fixture(tmp_path: Path) -> None:
     assert "wrote 5 frames" in result.output
 
 
-def test_detect2d_exits_nonzero() -> None:
+def test_detect2d_requires_local_flag() -> None:
     result = runner.invoke(app, ["detect2d"])
     assert result.exit_code == 1
-    assert "Phase 2" in result.output
+    assert "Phase 9" in result.output
+
+
+def test_detect2d_infer_requires_images_root() -> None:
+    result = runner.invoke(app, ["detect2d", "--mode", "infer", "--local"])
+    assert result.exit_code == 1
+    assert "images-root" in result.output.lower()
+
+
+def test_detect2d_unknown_mode_errors() -> None:
+    result = runner.invoke(app, ["detect2d", "--mode", "bogus", "--local"])
+    assert result.exit_code == 1
+    assert "Unknown --mode" in result.output

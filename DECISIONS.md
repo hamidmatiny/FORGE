@@ -131,3 +131,60 @@ exists locally, which is out-of-band per `docs/runbooks/ingest-real-nuscenes.md`
 `params.yaml`'s `ingest.input_dir` at a real local nuScenes-mini checkout.
 Nothing about this is exercised in CI.
 
+## Phase 2 — 2D Detection (2026-08-05)
+
+### ADR-011: Real torchvision Faster R-CNN, randomly initialized
+
+**Context:** A hand-rolled anchor-based detector (RPN, anchor matching, NMS)
+is a lot of surface area to get subtly wrong, and downloading pretrained
+COCO weights isn't possible in an environment with no access to
+download.pytorch.org and a disk budget too small for the full CUDA
+dependency chain pip normally resolves for `torch`.
+
+**Decision:** Use torchvision's `fasterrcnn_mobilenet_v3_large_320_fpn`
+with `weights=None, weights_backbone=None` — the real, tested, anchor-based
+multi-box detection architecture (proper RPN + NMS), just with random
+initial weights instead of downloaded ones. Wrapped in a
+`lightning.LightningModule` for the training loop. `torch`/`torchvision`/
+`lightning` stay in the `[detect2d]` extra (ADR-004 pattern) — never in the
+base install.
+
+**Consequences:** Out of the box this produces structurally valid
+multi-box predictions with meaningless confidence/class semantics until
+trained on real labels. `forge detect2d --mode infer` without `--checkpoint`
+logs a clear warning (`untrained-random-init`) rather than silently
+implying real detections. See KNOWN_GAPS.md.
+
+### ADR-012: Synthetic dataset for the training-loop smoke test
+
+**Context:** Phase 2's job is to prove the training loop (LightningModule,
+optimizer, checkpoint save/load, CPU execution) works correctly — not to
+produce an accurate detector, which needs real labeled data that doesn't
+exist yet (that's downstream of Phase 6's active-learning/pseudo-labeling
+loop).
+
+**Decision:** `SyntheticDetectionDataset` generates random images and
+random boxes/labels entirely in memory. `forge detect2d --mode train` runs
+against it by default. Real training data is a later-phase concern.
+
+**Consequences:** A trained checkpoint from this phase alone has no
+predictive value — its purpose is proving the mechanics, and tests assert
+on loss being finite/computed, not on any accuracy metric.
+
+### ADR-013: This sandbox's torch install workaround is not part of the repo
+
+**Context:** Verifying Phase 2 locally required installing `torch` without
+its normal CUDA dependency chain (this sandbox has a small disk budget and
+no access to the CPU-only wheel index), by installing `--no-deps` and
+pointing `LD_LIBRARY_PATH` at CUDA libraries this environment happened to
+have preinstalled system-wide.
+
+**Decision:** None of that workaround is reflected in `pyproject.toml`,
+`dvc.yaml`, CI, or any committed file — it was purely a local verification
+step in one development sandbox. `uv sync --extra detect2d` resolves
+`torch`/`torchvision`/`lightning` normally; on a real machine or GitHub
+Actions runner with normal disk and normal PyPI/download.pytorch.org access,
+the standard resolution just works.
+
+**Consequences:** None for the repo. Noted here only so a future reader
+of this history understands why that install path was explored at all.

@@ -7,7 +7,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | Item | Target Phase | Notes |
 |------|--------------|-------|
 | `forge ingest` | Phase 1 | ✅ Done — nuScenes-devkit JSON layout, key-frames only by default |
-| `forge detect2d` | Phase 2 | 2D detection; requires `[detect2d]` extras (torch, lightning) |
+| `forge detect2d` | Phase 2 | ✅ Done — Faster R-CNN (random-init) + Lightning; see PHASE_2_COMPLETION.md |
 | `forge detect3d` | Phase 3 | 3D detection / BEV; requires `[detect3d]` extras |
 | `forge track` | Phase 4 | Multi-object tracking across frames |
 | `forge fuse` | Phase 5 | Multi-sensor fusion |
@@ -25,6 +25,10 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | Non-keyframe sweep ingestion | Phase 1+ | `--all-sweeps` flag exists and is tested, but downstream phases (2+) assume key-frames only until noted otherwise |
 | Incremental/append ingest | Phase 1+ | Current `forge ingest` overwrites the lake tables on every run; append/merge semantics deferred |
 | Real nuScenes-mini run | Manual | Never executed in CI (non-commercial license, ~4 GB); `tests/fixtures/nuscenes_mini_synthetic/` mirrors the real JSON layout for all automated tests |
+| detect2d model accuracy | Phase 2+ | Faster R-CNN is randomly initialized, not trained on real labels; training loop is a verified-correct smoke test, not a tuned detector. See PHASE_2_COMPLETION.md |
+| detect2d class taxonomy | Phase 2+ | `CLASS_NAMES` (background/vehicle/pedestrian/cyclist/traffic_sign) is a placeholder; not yet reconciled against any real labeled dataset |
+| detect2d single-image inference | Phase 2+ | No batching in `run_inference` (one image at a time); fine at this scale, revisit if throughput matters later |
+| Non-camera detect2d filtering | Phase 2 | `run_inference` silently skips non-`CAM_*` sensors by design; lidar/radar detection is Phase 3 |
 
 ## Schema Tables (not yet defined)
 
