@@ -31,6 +31,20 @@ uv run pytest -q
 uv run python scripts/make_fixture.py
 ```
 
+> **Running the full check suite (mypy across all of `src/forge`, or pytest
+> for full coverage) requires every extra installed together** — mypy
+> type-checks the whole tree regardless of what's installed, and
+> uninstalled extras' tests get skipped, pulling total coverage below the
+> threshold. This matches what CI does (`.github/workflows/ci.yml`):
+> ```bash
+> uv sync --all-extras --dev
+> uv run ruff check . && uv run ruff format --check . && uv run mypy src/forge && uv run pytest -q
+> ```
+> A narrower `uv sync --extra track --dev` (etc.) is for actually *running*
+> just that phase's CLI command without the other phases' heavy deps —
+> not for the full mypy/pytest pass, which will show partial-extras
+> failures that aren't real bugs (see KNOWN_GAPS.md).
+
 ## Phase Checklist
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full pipeline diagram and a line-by-line

@@ -34,8 +34,9 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | detect3d BEV/segmentation | Phase 3+ | Boxes only; no explicit BEV feature map or semantic segmentation output, despite the phase name — see ARCHITECTURE.md coverage table for how "BEV" is satisfied at a basic level (3D boxes in the ego/ground frame) |
 | detect3d radar | Phase 3+ | Only `LIDAR_*` sensors are processed; radar point clouds are a different (sparser, Doppler-augmented) format and aren't handled |
 | track 2D-only | Phase 4+ | Tracking runs over `detections_2d` only; 3D tracking (over `detections_3d`, needing 3D IoU) isn't implemented |
-| track motion model | Phase 4+ | Constant-velocity Kalman filter; doesn't model turns, occlused re-identification via appearance, or camera-motion compensation (ego-motion isn't factored in despite `ego_pose` existing in the lake since Phase 1) |
+| track motion model | Phase 4+ | Constant-velocity Kalman filter; doesn't model turns, occluded re-identification via appearance, or camera-motion compensation (ego-motion isn't factored in despite `ego_pose` existing in the lake since Phase 1) |
 | track re-identification | Phase 4+ | A track that's retired (exceeds `max_age`) and reappears gets a brand-new ID; no appearance-based re-ID to recover the old identity |
+| Partial-extras mypy/pytest runs | Operational | mypy type-checks all of `src/forge` regardless of what's installed, and uninstalled extras' tests get `importorskip`-skipped, dragging coverage below threshold — install every extra together (`uv sync --all-extras --dev`, matching CI) before running the full check suite. A narrower extra sync is fine for actually running just that phase's CLI command. See README.md. |
 
 ## Schema Tables (not yet defined)
 
