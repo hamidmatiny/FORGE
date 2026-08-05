@@ -450,3 +450,30 @@ cloud project automatically. A user with real accounts could later run
 done here. Renamed the `pyproject.toml` extra placeholder from the
 Phase 0-era `mlops` to `evaluate`, matching every other phase's
 command-name convention (`detect2d`, `detect3d`, `track`, `fuse`).
+
+### Fix: absolute path + explicit registry URI for the MLflow SQLite store
+
+**Context:** Found via real user testing on macOS — `forge evaluate`
+logged an MLflow warning about the SQLite URI being rejected "for model
+registry storage" (caught by the existing try/except, so the evaluation
+itself still completed; only the MLflow logging step was skipped). Could
+not reproduce this in this Linux sandbox — the isolated test, the full
+suite, and a manual simulation using a relative lake-root path (matching
+the CLI's real `data/lake` default) all passed cleanly here. Community
+reports of this exact MLflow error message are consistently about the
+model-registry URI not being set explicitly and falling back
+inconsistently, not about SQLite itself being unsupported (SQLite is a
+documented-supported registry backend).
+
+**Decision:** Build the SQLite URI from an absolute, POSIX-style path
+(`.resolve().as_posix()`, avoiding any relative-path ambiguity) and call
+`mlflow.set_registry_uri()` explicitly with the same URI immediately
+after `set_tracking_uri()`, instead of relying on it falling back
+implicitly.
+
+**Consequences:** Verified this doesn't break the working case (full
+suite still 123 passed on this platform). Flagged honestly to the user
+that this is the most likely fix based on the symptom and available
+evidence, not a confirmed root-cause fix, since the failure couldn't be
+reproduced here — asked for re-verification on the platform where it
+actually occurred.

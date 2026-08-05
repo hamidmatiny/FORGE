@@ -43,8 +43,14 @@ def log_to_mlflow(
 
     mlflow_dir = lake_root / "mlflow"
     mlflow_dir.mkdir(parents=True, exist_ok=True)
+    # Always use an absolute, POSIX-style path in the URI (not a relative
+    # one) and set the registry URI explicitly rather than relying on it
+    # falling back from tracking_uri -- both have been observed to behave
+    # inconsistently across platforms/mlflow versions otherwise.
+    db_uri = f"sqlite:///{(mlflow_dir / 'mlflow.db').resolve().as_posix()}"
     try:
-        mlflow.set_tracking_uri(f"sqlite:///{mlflow_dir / 'mlflow.db'}")
+        mlflow.set_tracking_uri(db_uri)
+        mlflow.set_registry_uri(db_uri)
         mlflow.set_experiment("forge-evaluate")
         with mlflow.start_run(run_name=run_name):
             mlflow.log_params(params)
