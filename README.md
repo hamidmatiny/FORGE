@@ -42,7 +42,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ✅ |
 | 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ✅ |
 | 3 | `forge detect3d` — lidar 3D detection / BEV | ✅ |
-| 4 | `forge track` — multi-object tracking | ⬜ |
+| 4 | `forge track` — multi-object tracking | ✅ |
 | 5 | `forge fuse` — multi-sensor fusion | ⬜ |
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ⬜ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ⬜ |
@@ -104,6 +104,23 @@ See `PHASE_3_COMPLETION.md` for the point-cloud model design and its
 honestly-scoped limitations (fixed-slot prediction, no real 3D architecture
 package available in this environment).
 
+## Tracking
+
+```bash
+# Pure algorithmic — no torch/GPU needed, just numpy + scipy
+uv sync --extra track --dev
+
+# Requires 'forge ingest' and 'forge detect2d --mode infer' to have run first
+forge track --iou-threshold 0.3 --max-age 3 --local
+```
+
+SORT-style: a Kalman filter (constant-velocity model) predicts each active
+track forward one frame, then Hungarian assignment on IoU matches
+predictions to this frame's detections. A fresh tracker runs per
+`(scene, sensor)` sequence — tracks never span scenes. See
+`PHASE_4_COMPLETION.md` for the design and a real bug found and fixed
+during testing (track IDs colliding across different scenes).
+
 ## Ingest
 
 ```bash
@@ -145,6 +162,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 1 completion](PHASE_1_COMPLETION.md)
 - [Phase 2 completion](PHASE_2_COMPLETION.md)
 - [Phase 3 completion](PHASE_3_COMPLETION.md)
+- [Phase 4 completion](PHASE_4_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

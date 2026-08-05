@@ -106,11 +106,33 @@ One row per predicted 3D bounding box (lidar frames only).
 **Table class:** `forge.schemas.detections_3d.Detections3DTable`
 **Introduced:** Phase 3
 
+### `tracks` v1.0
+
+One row per detection, tagged with the track it was assigned to.
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `track_id` | `string` | yes | Globally unique — scoped as `{scene_id}:{sensor_id}:track-NNNNNN` |
+| `detection_id` | `string` | yes | `detections_2d.detection_id` this row wraps |
+| `frame_id` | `string` | yes | `frames.frame_id` this detection belongs to |
+| `scene_id` | `string` | yes | Tracks never span scenes |
+| `sensor_id` | `string` | yes | Sensor channel (e.g. `CAM_FRONT`) |
+| `timestamp_us` | `int64` | yes | Frame timestamp (microseconds) |
+| `class_id` | `int32` | yes | Detection's predicted class index |
+| `class_name` | `string` | yes | Detection's predicted class label |
+| `bbox_xyxy` | `fixed_size_list<double>[4]` | yes | `[x1, y1, x2, y2]` in pixel coordinates |
+| `score` | `float32` | yes | Detection confidence score |
+| `track_age` | `int32` | yes | Consecutive frames this track has matched (hit streak) |
+| `tracker_version` | `string` | yes | Tracker run/config identifier, e.g. `sort-v1` |
+
+**Pydantic model:** `forge.schemas.tracks.TrackRecord`
+**Table class:** `forge.schemas.tracks.TracksTable`
+**Introduced:** Phase 4
+
 ## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
-- `tracks` — Phase 4
 - `fused_objects` — Phase 5
 - `pseudo_labels` — Phase 6
 - `eval_metrics` — Phase 7

@@ -96,3 +96,15 @@ def test_detect3d_unknown_mode_errors() -> None:
     result = runner.invoke(app, ["detect3d", "--mode", "bogus", "--local"])
     assert result.exit_code == 1
     assert "Unknown --mode" in result.output
+
+
+def test_track_requires_local_flag() -> None:
+    result = runner.invoke(app, ["track"])
+    assert result.exit_code == 1
+    assert "Phase 9" in result.output
+
+
+def test_track_requires_frames_lake(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["track", "--local"], env={"FORGE_DATA_LAKE_ROOT": str(tmp_path)})
+    assert result.exit_code == 1
+    assert "forge ingest" in result.output

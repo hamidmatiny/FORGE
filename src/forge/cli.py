@@ -25,7 +25,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "track": 4,
     "fuse": 5,
     "label": 6,
     "evaluate": 7,
@@ -344,10 +343,69 @@ def detect3d_cmd(
 
 @app.command()
 def track(
+    iou_threshold: Annotated[
+        float, typer.Option("--iou-threshold", help="Minimum IoU to match a detection to a track.")
+    ] = 0.3,
+    max_age: Annotated[
+        int,
+        typer.Option("--max-age", help="Frames a track survives with no matching detection."),
+    ] = 3,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Associate detections across frames into tracks."""
-    _not_implemented("track", local=local)
+    """Associate 2D detections across frames into tracks (SORT: Kalman filter + Hungarian IoU)."""
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="track",
+        args={"iou_threshold": iou_threshold, "max_age": max_age, "local": local},
+        log_level=settings.log_level,
+    )
+
+    try:
+        from forge.track import run_tracking
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge track requires the [track] extra (numpy, scipy). "
+            "Install with: uv sync --extra track",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    from forge.schemas import Detections2DTable, FramesTable, TracksTable
+
+    frames_path = settings.data_lake_root / "frames.parquet"
+    detections_path = settings.data_lake_root / "detections_2d.parquet"
+    if not frames_path.exists():
+        console.print(
+            f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+    if not detections_path.exists():
+        console.print(
+            f"[red]Error:[/red] {detections_path} not found. Run 'forge detect2d' first.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    frames = FramesTable.read_parquet(str(frames_path))
+    detections = Detections2DTable.read_parquet(str(detections_path))
+    tracks = run_tracking(detections, frames, iou_threshold=iou_threshold, max_age=max_age)
+
+    output_path = settings.data_lake_root / "tracks.parquet"
+    TracksTable.write_parquet(tracks, str(output_path))
+    num_unique_tracks = len({t.track_id for t in tracks})
+    console.print(
+        f"[green]OK[/green] wrote {len(tracks)} track rows ({num_unique_tracks} unique tracks) "
+        f"from {len(detections)} detections -> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

@@ -252,3 +252,49 @@ all — a better UX independent of the test issue that surfaced it.
 **Consequences:** None behavior-wise for the success paths; only the error
 ordering changed. Verified by temporarily uninstalling torchvision and
 re-running the affected tests directly (not just trusting the reasoning).
+
+## Phase 4 — Tracking (2026-08-05)
+
+### ADR-016: SORT (Kalman filter + Hungarian IoU), hand-implemented
+
+**Context:** Multi-object tracking needs a way to associate detections
+across frames into consistent identities. Unlike detect2d/detect3d, this
+doesn't need a trained model at all — classic SORT (Simple Online and
+Realtime Tracking: constant-velocity Kalman filter per track + Hungarian
+assignment on IoU) is a well-established, purely algorithmic approach with
+no GPU/training required.
+
+**Decision:** Implement it directly with plain NumPy for the Kalman
+filter's predict/update equations (no external Kalman-filter library) and
+`scipy.optimize.linear_sum_assignment` for the Hungarian matching. Lives in
+the `[track]` extra (`numpy` + `scipy` — no torch needed for this phase at
+all). A fresh `SortTracker` runs per `(scene_id, sensor_id)` group; tracks
+never span scenes or sensors.
+
+**Consequences:** This is 2D-only (operates on `detections_2d`), uses a
+constant-velocity motion model only (no turn model, no ego-motion
+compensation despite `ego_pose` existing in the lake since Phase 1), and
+has no appearance-based re-identification — a track that ages out and
+reappears gets a new ID. See KNOWN_GAPS.md.
+
+### Bug found and fixed during testing: track IDs colliding across scenes
+
+**Context:** `SortTracker` numbers tracks locally (`track-000001`,
+`track-000002`, ...) starting fresh for each instance. `run_tracking`
+creates one tracker instance per `(scene_id, sensor_id)` group. A test
+asserting that two different scenes produce different track IDs failed:
+both trackers' first track was literally the string `"track-000001"`,
+so two semantically distinct tracks from different scenes collapsed into
+one when read back from `tracks.parquet` (anything grouping or deduping by
+`track_id` downstream would have silently merged unrelated objects).
+
+**Fix:** `run_tracking` now scopes the ID globally by prefixing with the
+group it came from: `f"{scene_id}:{sensor_id}:{local_track_id}"`.
+`SortTracker` itself is unchanged — its local counter is still an
+implementation detail, just no longer exposed as the final `track_id`.
+
+**Consequences:** `track_id` values are stable and human-readable
+(`scene-0001:CAM_FRONT:track-000001`), and the collision is structurally
+impossible now regardless of how many scenes/sensors get processed in one
+run. Caught by a dedicated test (`test_run_tracking_separates_different_scenes`)
+before this was pushed, not after.
