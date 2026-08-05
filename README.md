@@ -57,7 +57,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ✅ |
 | 3 | `forge detect3d` — lidar 3D detection / BEV | ✅ |
 | 4 | `forge track` — multi-object tracking | ✅ |
-| 5 | `forge fuse` — multi-sensor fusion | ⬜ |
+| 5 | `forge fuse` — multi-sensor fusion | ✅ |
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ⬜ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ⬜ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ⬜ |
@@ -135,6 +135,22 @@ predictions to this frame's detections. A fresh tracker runs per
 `PHASE_4_COMPLETION.md` for the design and a real bug found and fixed
 during testing (track IDs colliding across different scenes).
 
+## Fusion
+
+```bash
+# Also pure algorithmic — numpy + scipy, no torch
+uv sync --extra fuse --dev
+
+# Requires ingest + both detect2d and detect3d infer to have run first
+forge fuse --iou-threshold 0.1 --local
+```
+
+Projects each 3D lidar detection's box into its synchronized camera frame
+using the calibration recorded at ingest time (Phase 1), then matches
+projected boxes to camera detections by IoU (reusing Phase 4's Hungarian
+association code). Every row is tagged `matched`, `camera_only`, or
+`lidar_only` — nothing is silently dropped. See `PHASE_5_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -177,6 +193,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 2 completion](PHASE_2_COMPLETION.md)
 - [Phase 3 completion](PHASE_3_COMPLETION.md)
 - [Phase 4 completion](PHASE_4_COMPLETION.md)
+- [Phase 5 completion](PHASE_5_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

@@ -298,3 +298,47 @@ implementation detail, just no longer exposed as the final `track_id`.
 impossible now regardless of how many scenes/sensors get processed in one
 run. Caught by a dedicated test (`test_run_tracking_separates_different_scenes`)
 before this was pushed, not after.
+
+## Phase 5 — Fusion (2026-08-05)
+
+### ADR-017: Calibrated projection + IoU association, not learned fusion
+
+**Context:** Sensor fusion needs a way to relate a 3D lidar detection to a
+2D camera detection of the same physical object. Like tracking, this is a
+geometry problem with a well-established classical solution — no training
+needed.
+
+**Decision:** Project each 3D detection's box (8 corners, via the camera's
+calibrated extrinsics + intrinsics from Phase 1) into the camera's image
+plane as an enclosing 2D bbox, then reuse Phase 4's Hungarian/IoU
+association (`forge.track.association.associate`) to match projected boxes
+against real camera detections. `[fuse]` extra is `numpy` + `scipy`, same
+as `[track]` — no torch needed.
+
+**Consequences:** Every 2D and 3D detection ends up in exactly one output
+row (`matched`, `camera_only`, or `lidar_only`) — nothing silently
+dropped, which matters for an auto-labeling pipeline where a fusion miss
+should be visible, not invisible. Camera/lidar pairing assumes exact
+`(scene_id, timestamp_us)` equality (true for this fixture; real nuScenes
+samples are nominally but not bit-exactly synchronized across sensors —
+see KNOWN_GAPS.md). Calibration is looked up by `sensor_id` alone, not the
+full `calibrated_sensor_token` join.
+
+### Two test-authoring bugs found and fixed during testing (not code bugs)
+
+While writing `tests/test_fuse.py`:
+
+1. `pytest.approx()` doesn't support nested lists/matrices — comparing a
+   3x3 rotation matrix against a nested list raised `TypeError` before the
+   assertion even ran. Fixed by switching to
+   `numpy.testing.assert_allclose`.
+2. A fusion-matching test used a camera box that loosely contained the
+   projected lidar box rather than closely bracketing it — the resulting
+   IoU (~0.06) was below the default `iou_threshold=0.1`, so the test
+   asserted "matched" but the code correctly produced two unmatched rows
+   instead. Fixed by computing the actual projected bbox first and sizing
+   the test's camera box to closely overlap it, rather than guessing.
+
+Neither of these was a defect in `forge.fuse` itself — both were caught by
+running the new tests and reading the failure output carefully rather than
+assuming a red test means the code is wrong.

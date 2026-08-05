@@ -129,11 +129,38 @@ One row per detection, tagged with the track it was assigned to.
 **Table class:** `forge.schemas.tracks.TracksTable`
 **Introduced:** Phase 4
 
+### `fused_objects` v1.0
+
+One row per object after camera/lidar fusion — every camera and lidar
+detection ends up in exactly one row, tagged by how it was resolved.
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `fusion_id` | `string` | yes | Unique identifier for this row (UUID) |
+| `scene_id` | `string` | yes | Scene the fusion happened within |
+| `timestamp_us` | `int64` | yes | Synchronized sample timestamp (microseconds) |
+| `fusion_type` | `string` | yes | `matched`, `camera_only`, or `lidar_only` |
+| `frame_id_2d` | `string` | yes | Camera frame_id, or `""` if no 2D side |
+| `frame_id_3d` | `string` | yes | Lidar frame_id, or `""` if no 3D side |
+| `detection_id_2d` | `string` | yes | `detections_2d.detection_id`, or `""` |
+| `detection_id_3d` | `string` | yes | `detections_3d.detection_id`, or `""` |
+| `class_id` | `int32` | yes | Class index, preferring the 3D side when both exist |
+| `class_name` | `string` | yes | Human-readable class label |
+| `score` | `float32` | yes | Confidence, preferring the 3D side |
+| `bbox_xyxy` | `fixed_size_list<double>[4]` | yes | Camera box if present, else the projected lidar box, else `[0,0,0,0]` |
+| `center_xyz` | `fixed_size_list<double>[3]` | yes | 3D center (ego frame); `[0,0,0]` if no 3D side |
+| `dimensions_whl` | `fixed_size_list<double>[3]` | yes | 3D size; `[0,0,0]` if no 3D side |
+| `yaw` | `float32` | yes | Heading in radians; `0.0` if no 3D side |
+| `fuser_version` | `string` | yes | Fusion run/config identifier, e.g. `geometric-projection-v1` |
+
+**Pydantic model:** `forge.schemas.fused_objects.FusedObjectRecord`
+**Table class:** `forge.schemas.fused_objects.FusedObjectsTable`
+**Introduced:** Phase 5
+
 ## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
-- `fused_objects` — Phase 5
 - `pseudo_labels` — Phase 6
 - `eval_metrics` — Phase 7
 

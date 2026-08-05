@@ -25,7 +25,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "fuse": 5,
     "label": 6,
     "evaluate": 7,
     "curate": 8,
@@ -410,10 +409,88 @@ def track(
 
 @app.command()
 def fuse(
+    iou_threshold: Annotated[
+        float,
+        typer.Option(
+            "--iou-threshold", help="Minimum IoU to match a projected lidar box to a camera box."
+        ),
+    ] = 0.1,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Fuse multi-sensor detections and tracks."""
-    _not_implemented("fuse", local=local)
+    """Fuse camera and lidar detections via calibrated projection + IoU association."""
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="fuse",
+        args={"iou_threshold": iou_threshold, "local": local},
+        log_level=settings.log_level,
+    )
+
+    try:
+        from forge.fuse import run_fusion
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge fuse requires the [fuse] extra (numpy, scipy). "
+            "Install with: uv sync --extra fuse",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    from forge.schemas import (
+        CalibrationTable,
+        Detections2DTable,
+        Detections3DTable,
+        FramesTable,
+        FusedObjectsTable,
+    )
+
+    required = {
+        "frames.parquet": "forge ingest",
+        "calibration.parquet": "forge ingest",
+        "detections_2d.parquet": "forge detect2d --mode infer",
+        "detections_3d.parquet": "forge detect3d --mode infer",
+    }
+    for filename, command_hint in required.items():
+        path = settings.data_lake_root / filename
+        if not path.exists():
+            console.print(
+                f"[red]Error:[/red] {path} not found. Run '{command_hint}' first.",
+                highlight=False,
+            )
+            raise typer.Exit(code=1)
+
+    frames = FramesTable.read_parquet(str(settings.data_lake_root / "frames.parquet"))
+    calibration = CalibrationTable.read_parquet(
+        str(settings.data_lake_root / "calibration.parquet")
+    )
+    detections_2d = Detections2DTable.read_parquet(
+        str(settings.data_lake_root / "detections_2d.parquet")
+    )
+    detections_3d = Detections3DTable.read_parquet(
+        str(settings.data_lake_root / "detections_3d.parquet")
+    )
+
+    fused = run_fusion(
+        detections_2d, detections_3d, frames, calibration, iou_threshold=iou_threshold
+    )
+
+    output_path = settings.data_lake_root / "fused_objects.parquet"
+    FusedObjectsTable.write_parquet(fused, str(output_path))
+
+    matched = sum(1 for f in fused if f.fusion_type == "matched")
+    camera_only = sum(1 for f in fused if f.fusion_type == "camera_only")
+    lidar_only = sum(1 for f in fused if f.fusion_type == "lidar_only")
+    console.print(
+        f"[green]OK[/green] wrote {len(fused)} fused objects "
+        f"({matched} matched, {camera_only} camera-only, {lidar_only} lidar-only) -> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

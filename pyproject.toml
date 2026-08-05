@@ -36,6 +36,10 @@ track = [
     "numpy>=1.24",
     "scipy>=1.10",
 ]
+fuse = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
 ray = []
 viz = []
 mlops = []

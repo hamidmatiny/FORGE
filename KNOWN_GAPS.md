@@ -10,7 +10,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge detect2d` | Phase 2 | ✅ Done — Faster R-CNN (random-init) + Lightning; see PHASE_2_COMPLETION.md |
 | `forge detect3d` | Phase 3 | ✅ Done — PointNet-style encoder (random-init) + Lightning; see PHASE_3_COMPLETION.md |
 | `forge track` | Phase 4 | ✅ Done — SORT-style Kalman filter + Hungarian IoU; see PHASE_4_COMPLETION.md |
-| `forge fuse` | Phase 5 | Multi-sensor fusion |
+| `forge fuse` | Phase 5 | ✅ Done — calibrated projection + IoU association; see PHASE_5_COMPLETION.md |
 | `forge label` | Phase 6 | Active-learning selection + pseudo-labeling; confidence-gated review queue |
 | `forge evaluate` | Phase 7 | GT comparison (nuScenes GT evaluation-only) + MLflow/W&B metric logging |
 | `forge curate` | Phase 8 | LanceDB dedup/search index; dataset curation and export |
@@ -36,6 +36,10 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | track 2D-only | Phase 4+ | Tracking runs over `detections_2d` only; 3D tracking (over `detections_3d`, needing 3D IoU) isn't implemented |
 | track motion model | Phase 4+ | Constant-velocity Kalman filter; doesn't model turns, occluded re-identification via appearance, or camera-motion compensation (ego-motion isn't factored in despite `ego_pose` existing in the lake since Phase 1) |
 | track re-identification | Phase 4+ | A track that's retired (exceeds `max_age`) and reappears gets a brand-new ID; no appearance-based re-ID to recover the old identity |
+| fuse synchronization | Phase 5+ | Camera/lidar pairing assumes exact `(scene_id, timestamp_us)` equality; real nuScenes samples are nominally but not bit-exactly synchronized, so real-world timestamps would need a nearest-match window, not exact equality |
+| fuse doesn't fuse tracks | Phase 5+ | Operates on `detections_2d`/`detections_3d` directly, not on `tracks` — a fused track-level output (carrying `track_id` through) isn't produced |
+| fuse radar | Phase 5+ | Only camera+lidar; radar isn't part of the fusion (consistent with detect3d not handling radar either) |
+| fuse calibration lookup | Phase 5+ | Looks up calibration by `sensor_id` alone (first match wins if duplicates exist for one channel), not by the specific `calibrated_sensor_token` a given frame actually used — fine for this fixture (one calibration per channel) but not the fully general nuScenes join |
 | Partial-extras mypy/pytest runs | Operational | mypy type-checks all of `src/forge` regardless of what's installed, and uninstalled extras' tests get `importorskip`-skipped, dragging coverage below threshold — install every extra together (`uv sync --all-extras --dev`, matching CI) before running the full check suite. A narrower extra sync is fine for actually running just that phase's CLI command. See README.md. |
 
 ## Schema Tables (not yet defined)

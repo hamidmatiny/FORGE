@@ -432,6 +432,12 @@ detect3d = [
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "torch" },
 ]
+fuse = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
 track = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -454,12 +460,14 @@ requires-dist = [
     { name = "lightning", marker = "extra == 'detect2d'", specifier = ">=2.0" },
     { name = "lightning", marker = "extra == 'detect3d'", specifier = ">=2.0" },
     { name = "numpy", marker = "extra == 'detect3d'", specifier = ">=1.24" },
+    { name = "numpy", marker = "extra == 'fuse'", specifier = ">=1.24" },
     { name = "numpy", marker = "extra == 'track'", specifier = ">=1.24" },
     { name = "omegaconf", specifier = ">=2.3" },
     { name = "pyarrow", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0,<3" },
     { name = "pydantic-settings", specifier = ">=2.0" },
     { name = "rich", specifier = ">=13.0" },
+    { name = "scipy", marker = "extra == 'fuse'", specifier = ">=1.10" },
     { name = "scipy", marker = "extra == 'track'", specifier = ">=1.10" },
     { name = "structlog", specifier = ">=24.0" },
     { name = "torch", marker = "extra == 'detect2d'", specifier = ">=2.0" },
@@ -467,7 +475,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'detect2d'", specifier = ">=0.15" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["detect2d", "detect3d", "track", "ray", "viz", "mlops", "vectordb", "aws"]
+provides-extras = ["detect2d", "detect3d", "track", "fuse", "ray", "viz", "mlops", "vectordb", "aws"]
 
 [package.metadata.requires-dev]
 dev = [

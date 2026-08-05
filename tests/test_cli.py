@@ -108,3 +108,15 @@ def test_track_requires_frames_lake(tmp_path: Path) -> None:
     result = runner.invoke(app, ["track", "--local"], env={"FORGE_DATA_LAKE_ROOT": str(tmp_path)})
     assert result.exit_code == 1
     assert "forge ingest" in result.output
+
+
+def test_fuse_requires_local_flag() -> None:
+    result = runner.invoke(app, ["fuse"])
+    assert result.exit_code == 1
+    assert "Phase 9" in result.output
+
+
+def test_fuse_requires_frames_lake(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["fuse", "--local"], env={"FORGE_DATA_LAKE_ROOT": str(tmp_path)})
+    assert result.exit_code == 1
+    assert "forge ingest" in result.output
