@@ -8,7 +8,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 |------|--------------|-------|
 | `forge ingest` | Phase 1 | ✅ Done — nuScenes-devkit JSON layout, key-frames only by default |
 | `forge detect2d` | Phase 2 | ✅ Done — Faster R-CNN (random-init) + Lightning; see PHASE_2_COMPLETION.md |
-| `forge detect3d` | Phase 3 | 3D detection / BEV; requires `[detect3d]` extras |
+| `forge detect3d` | Phase 3 | ✅ Done — PointNet-style encoder (random-init) + Lightning; see PHASE_3_COMPLETION.md |
 | `forge track` | Phase 4 | Multi-object tracking across frames |
 | `forge fuse` | Phase 5 | Multi-sensor fusion |
 | `forge label` | Phase 6 | Active-learning selection + pseudo-labeling; confidence-gated review queue |
@@ -29,6 +29,10 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | detect2d class taxonomy | Phase 2+ | `CLASS_NAMES` (background/vehicle/pedestrian/cyclist/traffic_sign) is a placeholder; not yet reconciled against any real labeled dataset |
 | detect2d single-image inference | Phase 2+ | No batching in `run_inference` (one image at a time); fine at this scale, revisit if throughput matters later |
 | Non-camera detect2d filtering | Phase 2 | `run_inference` silently skips non-`CAM_*` sensors by design; lidar/radar detection is Phase 3 |
+| detect3d model accuracy | Phase 3+ | Randomly initialized, trained only on synthetic in-memory point clouds; not a tuned detector. See PHASE_3_COMPLETION.md |
+| detect3d fixed query count | Phase 3+ | Predicts exactly `NUM_QUERIES` (4) box slots per point cloud, no variable object count or NMS/matching; a real detector needs proper set prediction (Hungarian matching) or an anchor/heatmap-based head. See DECISIONS.md ADR-014 |
+| detect3d BEV/segmentation | Phase 3+ | Boxes only; no explicit BEV feature map or semantic segmentation output, despite the phase name — see ARCHITECTURE.md coverage table for how "BEV" is satisfied at a basic level (3D boxes in the ego/ground frame) |
+| detect3d radar | Phase 3+ | Only `LIDAR_*` sensors are processed; radar point clouds are a different (sparser, Doppler-augmented) format and aren't handled |
 
 ## Schema Tables (not yet defined)
 

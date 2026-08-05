@@ -41,7 +41,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 0 | Foundation (package, schemas, CI, Docker) | ✅ |
 | 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ✅ |
 | 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ✅ |
-| 3 | `forge detect3d` — lidar 3D detection / BEV | ⬜ |
+| 3 | `forge detect3d` — lidar 3D detection / BEV | ✅ |
 | 4 | `forge track` — multi-object tracking | ⬜ |
 | 5 | `forge fuse` — multi-sensor fusion | ⬜ |
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ⬜ |
@@ -87,6 +87,18 @@ Without `--checkpoint`, infer mode runs a freshly initialized (untrained)
 model — useful to smoke-test the pipeline shape, not to get real detections.
 See `PHASE_2_COMPLETION.md` for what this phase does and doesn't claim.
 
+```bash
+# 3D detection over lidar frames (torch/lightning again, no torchvision needed)
+uv sync --extra detect3d --dev
+forge detect3d --mode train --max-steps 10 --output-checkpoint checkpoints/detect3d.pt --local
+forge detect3d --mode infer --checkpoint checkpoints/detect3d.pt \
+  --pointcloud-root /path/to/nuscenes-mini --local
+```
+
+See `PHASE_3_COMPLETION.md` for the point-cloud model design and its
+honestly-scoped limitations (fixed-slot prediction, no real 3D architecture
+package available in this environment).
+
 ## Ingest
 
 ```bash
@@ -127,6 +139,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Architecture + requirement coverage map](ARCHITECTURE.md)
 - [Phase 1 completion](PHASE_1_COMPLETION.md)
 - [Phase 2 completion](PHASE_2_COMPLETION.md)
+- [Phase 3 completion](PHASE_3_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

@@ -78,3 +78,21 @@ def test_detect2d_unknown_mode_errors() -> None:
     result = runner.invoke(app, ["detect2d", "--mode", "bogus", "--local"])
     assert result.exit_code == 1
     assert "Unknown --mode" in result.output
+
+
+def test_detect3d_requires_local_flag() -> None:
+    result = runner.invoke(app, ["detect3d"])
+    assert result.exit_code == 1
+    assert "Phase 9" in result.output
+
+
+def test_detect3d_infer_requires_pointcloud_root() -> None:
+    result = runner.invoke(app, ["detect3d", "--mode", "infer", "--local"])
+    assert result.exit_code == 1
+    assert "pointcloud-root" in result.output.lower()
+
+
+def test_detect3d_unknown_mode_errors() -> None:
+    result = runner.invoke(app, ["detect3d", "--mode", "bogus", "--local"])
+    assert result.exit_code == 1
+    assert "Unknown --mode" in result.output

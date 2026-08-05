@@ -27,7 +27,11 @@ detect2d = [
     "torchvision>=0.15",
     "lightning>=2.0",
 ]
-detect3d = []
+detect3d = [
+    "torch>=2.0",
+    "lightning>=2.0",
+    "numpy>=1.24",
+]
 ray = []
 viz = []
 mlops = []

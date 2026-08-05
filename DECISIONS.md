@@ -188,3 +188,48 @@ the standard resolution just works.
 
 **Consequences:** None for the repo. Noted here only so a future reader
 of this history understands why that install path was explored at all.
+## Phase 3 — 3D Detection (2026-08-05)
+
+### ADR-014: Hand-built PointNet-style encoder, fixed query slots, no matching
+
+**Context:** Unlike Phase 2, torchvision has no off-the-shelf point-cloud /
+3D detection model. Real ones (PointPillars, CenterPoint, VoxelNet) live in
+packages (mmdetection3d, OpenPCDet) this environment can't install, and
+writing a full anchor-based or heatmap-based 3D head with proper
+variable-object-count matching is a lot of surface area for a phase whose
+job is to prove the pipeline mechanics, not compete with a research
+detector.
+
+**Decision:** A small hand-built PointNet-style encoder (per-point shared
+MLP + global max-pool, the core permutation-invariant idea from the actual
+PointNet paper) feeds a head that predicts a **fixed** number of box query
+slots (`NUM_QUERIES = 4`) per point cloud. The synthetic training set always
+emits exactly `NUM_QUERIES` boxes in a fixed order, so each slot has a
+direct, unambiguous regression target — no Hungarian/bipartite matching
+needed for this phase.
+
+**Consequences:** This is not a real multi-object detector — it can't
+handle "however many objects happen to be in this scene," only exactly
+`NUM_QUERIES` slots. A real version needs either proper set-prediction
+matching (DETR-style Hungarian matching) or a spatial anchor/heatmap
+approach (closer to PointPillars/CenterPoint). Tracked in KNOWN_GAPS.md.
+Verified the loss actually decreases with more training steps (not just
+"runs without crashing") before committing, to confirm the gradient signal
+is real.
+
+### ADR-015: Objectness separate from class, no background class
+
+**Context:** Phase 2's Faster R-CNN uses torchvision's convention of a
+dedicated background class (index 0). Phase 3's fixed-slot head has no
+such built-in convention to inherit.
+
+**Decision:** `Detector3DModule` predicts objectness (a single sigmoid
+logit) separately from a foreground-only class distribution
+(`CLASS_NAMES = ["vehicle", "pedestrian", "cyclist"]`, no background). At
+inference, `score` in `detections_3d` is the objectness sigmoid, and
+`class_id`/`class_name` come from the class argmax.
+
+**Consequences:** `detect2d` and `detect3d` have different class taxonomies
+(5 classes including background vs. 3 foreground-only) — intentional, not
+an oversight, since they're independent hand-scoped models. Reconciling
+them into one taxonomy is future work if/when Phase 5 (fusion) needs it.

@@ -25,7 +25,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "detect3d": 3,
     "track": 4,
     "fuse": 5,
     "label": 6,
@@ -242,10 +241,105 @@ def detect2d_cmd(
 
 @app.command("detect3d")
 def detect3d_cmd(
+    mode: Annotated[str, typer.Option("--mode", help="'train' or 'infer'.")] = "infer",
+    checkpoint: Annotated[
+        Path | None,
+        typer.Option("--checkpoint", help="Model checkpoint to load (infer mode)."),
+    ] = None,
+    output_checkpoint: Annotated[
+        Path,
+        typer.Option("--output-checkpoint", help="Where to save the checkpoint (train mode)."),
+    ] = Path("checkpoints/detect3d.pt"),
+    pointcloud_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--pointcloud-root",
+            help="Dataset root for resolving frame.data_path (infer mode).",
+        ),
+    ] = None,
+    max_steps: Annotated[
+        int, typer.Option("--max-steps", help="Training steps (train mode).")
+    ] = 10,
+    score_threshold: Annotated[
+        float, typer.Option("--score-threshold", help="Minimum score to keep (infer mode).")
+    ] = 0.3,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Run 3D object detection on lidar/radar data."""
-    _not_implemented("detect3d", local=local)
+    """Train or run 3D object detection on lidar frames (PointNet-style + Lightning)."""
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="detect3d",
+        args={
+            "mode": mode,
+            "checkpoint": str(checkpoint) if checkpoint else None,
+            "pointcloud_root": str(pointcloud_root) if pointcloud_root else None,
+            "max_steps": max_steps,
+            "score_threshold": score_threshold,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    try:
+        from forge.detect3d import load_detector, run_inference, train_detector
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge detect3d requires the [detect3d] extra "
+            "(torch, lightning, numpy). Install with: uv sync --extra detect3d",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    if mode == "train":
+        final_loss = train_detector(output_checkpoint=output_checkpoint, max_steps=max_steps)
+        console.print(
+            f"[green]OK[/green] trained {max_steps} steps, final loss={final_loss:.4f} "
+            f"-> {output_checkpoint}",
+            highlight=False,
+        )
+        return
+
+    if mode == "infer":
+        if pointcloud_root is None:
+            console.print(
+                "[red]Error:[/red] --pointcloud-root is required for --mode infer.",
+                highlight=False,
+            )
+            raise typer.Exit(code=1)
+
+        from forge.schemas import Detections3DTable, FramesTable
+
+        frames_path = settings.data_lake_root / "frames.parquet"
+        if not frames_path.exists():
+            console.print(
+                f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
+                highlight=False,
+            )
+            raise typer.Exit(code=1)
+
+        frames = FramesTable.read_parquet(str(frames_path))
+        model, model_version = load_detector(checkpoint)
+        detections = run_inference(
+            frames, pointcloud_root, model, model_version, score_threshold=score_threshold
+        )
+        output_path = settings.data_lake_root / "detections_3d.parquet"
+        Detections3DTable.write_parquet(detections, str(output_path))
+        console.print(
+            f"[green]OK[/green] wrote {len(detections)} detections from "
+            f"{len(frames)} lake frames (model={model_version}) -> {output_path}",
+            highlight=False,
+        )
+        return
+
+    console.print(f"[red]Error:[/red] Unknown --mode '{mode}'. Use 'train' or 'infer'.")
+    raise typer.Exit(code=1)
 
 
 @app.command()

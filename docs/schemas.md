@@ -86,11 +86,30 @@ One row per predicted 2D bounding box (camera frames only).
 **Table class:** `forge.schemas.detections_2d.Detections2DTable`
 **Introduced:** Phase 2
 
+### `detections_3d` v1.0
+
+One row per predicted 3D bounding box (lidar frames only).
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `detection_id` | `string` | yes | Unique detection identifier (UUID) |
+| `frame_id` | `string` | yes | `frames.frame_id` this detection belongs to |
+| `class_id` | `int32` | yes | Predicted class index |
+| `class_name` | `string` | yes | Human-readable class label |
+| `score` | `float32` | yes | Objectness confidence, `[0, 1]` |
+| `center_xyz` | `fixed_size_list<double>[3]` | yes | Box center in meters, ego frame |
+| `dimensions_whl` | `fixed_size_list<double>[3]` | yes | Box size `[width, height, length]` in meters |
+| `yaw` | `float32` | yes | Heading angle (radians) around the vertical axis |
+| `model_version` | `string` | yes | Checkpoint identifier, or `untrained-random-init` |
+
+**Pydantic model:** `forge.schemas.detections_3d.Detection3DRecord`
+**Table class:** `forge.schemas.detections_3d.Detections3DTable`
+**Introduced:** Phase 3
+
 ## Future Tables (not yet built)
 
 The following tables will be designed in their implementing phases — no stubs:
 
-- `detections_3d` — Phase 3
 - `tracks` — Phase 4
 - `fused_objects` — Phase 5
 - `pseudo_labels` — Phase 6
