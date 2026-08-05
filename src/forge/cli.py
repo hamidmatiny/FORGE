@@ -185,6 +185,16 @@ def detect2d_cmd(
         log_level=settings.log_level,
     )
 
+    if mode not in ("train", "infer"):
+        console.print(f"[red]Error:[/red] Unknown --mode '{mode}'. Use 'train' or 'infer'.")
+        raise typer.Exit(code=1)
+
+    if mode == "infer" and images_root is None:
+        console.print(
+            "[red]Error:[/red] --images-root is required for --mode infer.", highlight=False
+        )
+        raise typer.Exit(code=1)
+
     try:
         from forge.detect2d import load_detector, run_inference, train_detector
     except ImportError as exc:
@@ -204,39 +214,29 @@ def detect2d_cmd(
         )
         return
 
-    if mode == "infer":
-        if images_root is None:
-            console.print(
-                "[red]Error:[/red] --images-root is required for --mode infer.", highlight=False
-            )
-            raise typer.Exit(code=1)
+    assert images_root is not None  # validated above
+    from forge.schemas import Detections2DTable, FramesTable
 
-        from forge.schemas import Detections2DTable, FramesTable
-
-        frames_path = settings.data_lake_root / "frames.parquet"
-        if not frames_path.exists():
-            console.print(
-                f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
-                highlight=False,
-            )
-            raise typer.Exit(code=1)
-
-        frames = FramesTable.read_parquet(str(frames_path))
-        model, model_version = load_detector(checkpoint)
-        detections = run_inference(
-            frames, images_root, model, model_version, score_threshold=score_threshold
-        )
-        output_path = settings.data_lake_root / "detections_2d.parquet"
-        Detections2DTable.write_parquet(detections, str(output_path))
+    frames_path = settings.data_lake_root / "frames.parquet"
+    if not frames_path.exists():
         console.print(
-            f"[green]OK[/green] wrote {len(detections)} detections from "
-            f"{len(frames)} lake frames (model={model_version}) -> {output_path}",
+            f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
             highlight=False,
         )
-        return
+        raise typer.Exit(code=1)
 
-    console.print(f"[red]Error:[/red] Unknown --mode '{mode}'. Use 'train' or 'infer'.")
-    raise typer.Exit(code=1)
+    frames = FramesTable.read_parquet(str(frames_path))
+    model, model_version = load_detector(checkpoint)
+    detections = run_inference(
+        frames, images_root, model, model_version, score_threshold=score_threshold
+    )
+    output_path = settings.data_lake_root / "detections_2d.parquet"
+    Detections2DTable.write_parquet(detections, str(output_path))
+    console.print(
+        f"[green]OK[/green] wrote {len(detections)} detections from "
+        f"{len(frames)} lake frames (model={model_version}) -> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command("detect3d")
@@ -287,6 +287,17 @@ def detect3d_cmd(
         log_level=settings.log_level,
     )
 
+    if mode not in ("train", "infer"):
+        console.print(f"[red]Error:[/red] Unknown --mode '{mode}'. Use 'train' or 'infer'.")
+        raise typer.Exit(code=1)
+
+    if mode == "infer" and pointcloud_root is None:
+        console.print(
+            "[red]Error:[/red] --pointcloud-root is required for --mode infer.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
     try:
         from forge.detect3d import load_detector, run_inference, train_detector
     except ImportError as exc:
@@ -306,40 +317,29 @@ def detect3d_cmd(
         )
         return
 
-    if mode == "infer":
-        if pointcloud_root is None:
-            console.print(
-                "[red]Error:[/red] --pointcloud-root is required for --mode infer.",
-                highlight=False,
-            )
-            raise typer.Exit(code=1)
+    assert pointcloud_root is not None  # validated above
+    from forge.schemas import Detections3DTable, FramesTable
 
-        from forge.schemas import Detections3DTable, FramesTable
-
-        frames_path = settings.data_lake_root / "frames.parquet"
-        if not frames_path.exists():
-            console.print(
-                f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
-                highlight=False,
-            )
-            raise typer.Exit(code=1)
-
-        frames = FramesTable.read_parquet(str(frames_path))
-        model, model_version = load_detector(checkpoint)
-        detections = run_inference(
-            frames, pointcloud_root, model, model_version, score_threshold=score_threshold
-        )
-        output_path = settings.data_lake_root / "detections_3d.parquet"
-        Detections3DTable.write_parquet(detections, str(output_path))
+    frames_path = settings.data_lake_root / "frames.parquet"
+    if not frames_path.exists():
         console.print(
-            f"[green]OK[/green] wrote {len(detections)} detections from "
-            f"{len(frames)} lake frames (model={model_version}) -> {output_path}",
+            f"[red]Error:[/red] {frames_path} not found. Run 'forge ingest' first.",
             highlight=False,
         )
-        return
+        raise typer.Exit(code=1)
 
-    console.print(f"[red]Error:[/red] Unknown --mode '{mode}'. Use 'train' or 'infer'.")
-    raise typer.Exit(code=1)
+    frames = FramesTable.read_parquet(str(frames_path))
+    model, model_version = load_detector(checkpoint)
+    detections = run_inference(
+        frames, pointcloud_root, model, model_version, score_threshold=score_threshold
+    )
+    output_path = settings.data_lake_root / "detections_3d.parquet"
+    Detections3DTable.write_parquet(detections, str(output_path))
+    console.print(
+        f"[green]OK[/green] wrote {len(detections)} detections from "
+        f"{len(frames)} lake frames (model={model_version}) -> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

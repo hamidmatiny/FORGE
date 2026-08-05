@@ -71,6 +71,11 @@ Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNO
 
 ## Detection
 
+> **Note:** `uv sync --extra X` resolves to *exactly* that extra set — running
+> it again with a different extra uninstalls packages from the previous one.
+> To have both `detect2d` and `detect3d` available at once:
+> `uv sync --extra detect2d --extra detect3d --dev`.
+
 ```bash
 # Install the heavy extras first (torch, torchvision, lightning)
 uv sync --extra detect2d --dev

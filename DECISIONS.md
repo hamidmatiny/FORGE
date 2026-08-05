@@ -233,3 +233,22 @@ inference, `score` in `detections_3d` is the objectness sigmoid, and
 (5 classes including background vs. 3 foreground-only) — intentional, not
 an oversight, since they're independent hand-scoped models. Reconciling
 them into one taxonomy is future work if/when Phase 5 (fusion) needs it.
+
+### Fix: validate CLI arguments before importing heavy extras
+
+**Context:** Found via real user testing — running `uv sync --extra
+detect3d` (which replaces rather than adds to a previous `--extra
+detect2d` sync) uninstalled torchvision, which broke two `detect2d` CLI
+tests that expected an argument-validation error (`Unknown --mode`,
+missing `--images-root`) but got the "extra not installed" error instead,
+because the heavy `from forge.detect2d import ...` was attempted before
+those cheap argument checks.
+
+**Decision:** In both `detect2d_cmd` and `detect3d_cmd`, validate `--mode`
+and the infer-mode-required root path *before* attempting the heavy
+import. Argument typos now fail fast without needing torch installed at
+all — a better UX independent of the test issue that surfaced it.
+
+**Consequences:** None behavior-wise for the success paths; only the error
+ordering changed. Verified by temporarily uninstalling torchvision and
+re-running the affected tests directly (not just trusting the reasoning).
