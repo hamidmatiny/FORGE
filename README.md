@@ -33,17 +33,23 @@ uv run python scripts/make_fixture.py
 
 ## Phase Checklist
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full pipeline diagram and a line-by-line
+mapping of each phase to the requirement it's built to satisfy.
+
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Foundation (package, schemas, CI, Docker) | ✅ |
-| 1 | `forge ingest` — nuScenes-mini → Parquet lake | ⬜ |
-| 2 | `forge detect2d` | ⬜ |
-| 3 | `forge detect3d` | ⬜ |
-| 4 | `forge track` | ⬜ |
-| 5 | `forge fuse` | ⬜ |
-| 6 | `forge evaluate` | ⬜ |
-| 7 | `forge curate` | ⬜ |
-| 8 | `forge visualize` | ⬜ |
+| 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC, Hydra configs | ⬜ |
+| 2 | `forge detect2d` — camera 2D detection (PyTorch Lightning) | ⬜ |
+| 3 | `forge detect3d` — lidar 3D detection / BEV | ⬜ |
+| 4 | `forge track` — multi-object tracking | ⬜ |
+| 5 | `forge fuse` — multi-sensor fusion | ⬜ |
+| 6 | `forge label` — active learning + pseudo-labeling, review queue | ⬜ |
+| 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ⬜ |
+| 8 | `forge curate` — LanceDB dedup/search, dataset export | ⬜ |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena | ⬜ |
+| 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
+| 11 | Productionization — runbook, demo script | ⬜ |
 
 ## CLI
 
@@ -55,9 +61,10 @@ forge detect2d     # Phase 2
 forge detect3d     # Phase 3
 forge track        # Phase 4
 forge fuse         # Phase 5
-forge evaluate     # Phase 6
-forge curate       # Phase 7
-forge visualize    # Phase 8
+forge label        # Phase 6 — active learning / pseudo-labeling
+forge evaluate     # Phase 7
+forge curate       # Phase 8
+forge visualize    # Phase 10
 ```
 
 Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md).
@@ -86,6 +93,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 
 ## Docs
 
+- [Architecture + requirement coverage map](ARCHITECTURE.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

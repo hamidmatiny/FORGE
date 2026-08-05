@@ -19,6 +19,7 @@ def test_help_lists_all_stage_commands() -> None:
         "detect3d",
         "track",
         "fuse",
+        "label",
         "evaluate",
         "curate",
         "visualize",

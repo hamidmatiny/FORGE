@@ -34,6 +34,27 @@
 
 **Consequences:** `uv sync --all-extras` adds no heavy packages until later phases.
 
+### ADR-006: Phase plan restructuring for full requirement coverage (2026-08-05)
+
+**Context:** The original 8-command phase plan (ingest → detect2d → detect3d → track →
+fuse → evaluate → curate → visualize) covered detection/tracking/fusion well but had
+no dedicated phase for active learning / pseudo-labeling — a core auto-labeling
+capability — and no explicit MLOps (MLflow/W&B/model registry), vector-DB (LanceDB),
+or cloud/Terraform coverage.
+
+**Decision:** Insert `forge label` (Phase 6) as its own stage for confidence-gated
+active-learning selection and pseudo-label generation. Move GT evaluation + MLflow/W&B
+metric logging to Phase 7. Extend Phase 8 (`curate`) to include a LanceDB dedup/search
+index. Add Phase 9 (no CLI verb) for Ray distributed execution and Terraform-provisioned
+AWS S3/Glue/Athena, applied out-of-band only — matching the cost-safety ADRs already in
+place on the sibling repos (Vulcan ADR-002, PRISM ADR-001). Extend Phase 10 (`visualize`)
+to include FiftyOne. Add Phase 11 for productionization docs. See ARCHITECTURE.md for
+the full requirement-to-phase mapping.
+
+**Consequences:** `PHASE_MAP` in `cli.py` and the `evaluate`/`curate`/`visualize` phase
+numbers changed (6→7, 7→8, 8→10); the CLI help text and README/KNOWN_GAPS phase tables
+were updated to match. No Phase 0 code behavior changed — this is a planning-scope ADR.
+
 ### ADR-005: BaseTable pattern for all data-lake tables
 
 **Context:** Parquet schemas must be explicit, versioned, and losslessly round-tripped.

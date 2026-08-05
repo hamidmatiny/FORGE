@@ -24,6 +24,9 @@ detect2d = []
 detect3d = []
 ray = []
 viz = []
+mlops = []
+vectordb = []
+aws = []
 
 [dependency-groups]
 dev = [

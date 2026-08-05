@@ -28,9 +28,10 @@ PHASE_MAP: dict[str, int] = {
     "detect3d": 3,
     "track": 4,
     "fuse": 5,
-    "evaluate": 6,
-    "curate": 7,
-    "visualize": 8,
+    "label": 6,
+    "evaluate": 7,
+    "curate": 8,
+    "visualize": 10,
 }
 
 
@@ -108,10 +109,18 @@ def fuse(
 
 
 @app.command()
+def label(
+    local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+) -> None:
+    """Active-learning selection + pseudo-label generation with confidence-gated review queue."""
+    _not_implemented("label", local=local)
+
+
+@app.command()
 def evaluate(
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Evaluate auto-labels against ground truth (evaluation only)."""
+    """Evaluate auto-labels against ground truth and log quality metrics (evaluation only)."""
     _not_implemented("evaluate", local=local)
 
 
@@ -119,7 +128,7 @@ def evaluate(
 def curate(
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Curate and export high-quality annotation datasets."""
+    """Curate, deduplicate (LanceDB vector search), and export annotation datasets."""
     _not_implemented("curate", local=local)
 
 
@@ -127,7 +136,7 @@ def curate(
 def visualize(
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Launch interactive 3D visualization (rerun.io / Foxglove)."""
+    """Launch interactive review (rerun.io / Foxglove MCAP / FiftyOne)."""
     _not_implemented("visualize", local=local)
 
 

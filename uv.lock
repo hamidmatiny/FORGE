@@ -194,7 +194,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["detect2d", "detect3d", "ray", "viz"]
+provides-extras = ["detect2d", "detect3d", "ray", "viz", "mlops", "vectordb", "aws"]
 
 [package.metadata.requires-dev]
 dev = [
