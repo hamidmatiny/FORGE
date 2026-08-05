@@ -42,7 +42,10 @@ fuse = [
 ]
 ray = []
 viz = []
-mlops = []
+evaluate = [
+    "mlflow-skinny>=2.10",
+    "wandb>=0.16",
+]
 vectordb = []
 aws = []
 
@@ -89,7 +92,7 @@ module = "pyarrow.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*"]
+module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*", "mlflow.*", "wandb.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

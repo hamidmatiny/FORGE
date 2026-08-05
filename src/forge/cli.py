@@ -26,7 +26,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "evaluate": 7,
     "curate": 8,
     "visualize": 10,
 }
@@ -586,10 +585,108 @@ def label(
 
 @app.command()
 def evaluate(
+    gt_input_dir: Annotated[
+        Path,
+        typer.Option(
+            "--gt-input-dir",
+            help="nuScenes root with sample_annotation.json (eval-only, never a pipeline input).",
+        ),
+    ],
+    version: Annotated[
+        str, typer.Option("--nuscenes-version", help="nuScenes version directory name.")
+    ] = "v1.0-mini",
+    decision_filter: Annotated[
+        str,
+        typer.Option(
+            "--decision-filter",
+            help="Which pseudo_labels.decision to evaluate: auto_accept/needs_review/all.",
+        ),
+    ] = "auto_accept",
+    distance_threshold: Annotated[
+        float,
+        typer.Option("--distance-threshold", help="BEV center-distance match threshold (meters)."),
+    ] = 2.0,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
     """Evaluate auto-labels against ground truth and log quality metrics (evaluation only)."""
-    _not_implemented("evaluate", local=local)
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="evaluate",
+        args={
+            "gt_input_dir": str(gt_input_dir),
+            "version": version,
+            "decision_filter": decision_filter,
+            "distance_threshold": distance_threshold,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    labels_path = settings.data_lake_root / "pseudo_labels.parquet"
+    if not labels_path.exists():
+        console.print(
+            f"[red]Error:[/red] {labels_path} not found. Run 'forge label' first.", highlight=False
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        from forge.evaluate import ingest_ground_truth, log_to_mlflow, log_to_wandb, run_evaluation
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge evaluate requires the [evaluate] extra "
+            "(mlflow-skinny, wandb). Install with: uv sync --extra evaluate",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    from forge.schemas import EvalMetricsTable, PseudoLabelsTable
+
+    try:
+        ground_truth = ingest_ground_truth(gt_input_dir, version=version)
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error:[/red] {exc}", highlight=False)
+        raise typer.Exit(code=1) from exc
+
+    pseudo_labels = PseudoLabelsTable.read_parquet(str(labels_path))
+    metrics = run_evaluation(
+        pseudo_labels,
+        ground_truth,
+        decision_filter=decision_filter,
+        distance_threshold_m=distance_threshold,
+    )
+
+    output_path = settings.data_lake_root / "eval_metrics.parquet"
+    EvalMetricsTable.write_parquet(metrics, str(output_path))
+
+    overall = next(m for m in metrics if m.class_name == "overall")
+    run_params = {
+        "decision_filter": decision_filter,
+        "distance_threshold_m": distance_threshold,
+        "gt_input_dir": str(gt_input_dir),
+    }
+    run_metrics = {
+        "precision": overall.precision,
+        "recall": overall.recall,
+        "f1": overall.f1,
+        "mAP": overall.average_precision,
+    }
+    log_to_mlflow(settings.data_lake_root, "forge-evaluate", run_params, run_metrics)
+    log_to_wandb(settings.data_lake_root, "forge-evaluate", run_params, run_metrics)
+
+    console.print(
+        f"[green]OK[/green] evaluated {overall.num_predictions} predictions against "
+        f"{overall.num_gt} GT boxes -> precision={overall.precision:.3f} "
+        f"recall={overall.recall:.3f} f1={overall.f1:.3f} mAP={overall.average_precision:.3f} "
+        f"-> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

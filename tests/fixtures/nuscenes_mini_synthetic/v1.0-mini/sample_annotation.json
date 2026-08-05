@@ -1,0 +1,38 @@
+[
+  {
+    "token": "ann-1",
+    "sample_token": "sample-1",
+    "category_name": "vehicle.car",
+    "translation": [10.0, 0.0, 0.0],
+    "size": [2.0, 1.6, 4.5],
+    "rotation": [1.0, 0.0, 0.0, 0.0],
+    "num_lidar_pts": 42
+  },
+  {
+    "token": "ann-2",
+    "sample_token": "sample-1",
+    "category_name": "human.pedestrian.adult",
+    "translation": [5.0, 3.0, 0.0],
+    "size": [0.6, 1.8, 0.6],
+    "rotation": [1.0, 0.0, 0.0, 0.0],
+    "num_lidar_pts": 8
+  },
+  {
+    "token": "ann-3",
+    "sample_token": "sample-2",
+    "category_name": "vehicle.car",
+    "translation": [12.0, 0.0, 0.0],
+    "size": [2.0, 1.6, 4.5],
+    "rotation": [1.0, 0.0, 0.0, 0.0],
+    "num_lidar_pts": 39
+  },
+  {
+    "token": "ann-4",
+    "sample_token": "sample-3",
+    "category_name": "vehicle.car",
+    "translation": [8.0, 0.0, 0.0],
+    "size": [2.0, 1.6, 4.5],
+    "rotation": [1.0, 0.0, 0.0, 0.0],
+    "num_lidar_pts": 51
+  }
+]

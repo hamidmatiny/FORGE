@@ -380,3 +380,73 @@ gap this pipeline exists to close). `rejected` rows are kept in the table,
 not silently dropped, so every routing decision is auditable. See
 KNOWN_GAPS.md for what this phase doesn't yet do (a reviewer UI to
 consume the queue, using track continuity as an additional trust signal).
+
+## Phase 7 — Evaluation (2026-08-05)
+
+### ADR-019: BEV center-distance matching, not 3D IoU — matching nuScenes' own convention
+
+**Context:** Scoring predictions against ground truth needs a matching
+rule. 3D IoU is the obvious first instinct, but nuScenes' own official
+detection metric doesn't use it at all — it uses BEV (bird's-eye-view)
+center-distance thresholds (0.5m/1m/2m/4m). Faithfully matching the
+dataset's own convention is both simpler to implement correctly and more
+legitimate than picking an arbitrary alternative.
+
+**Decision:** `forge.evaluate.metrics.evaluate_class` matches by Euclidean
+BEV distance, with a single configurable `--distance-threshold` (default
+2m) rather than nuScenes' full multi-threshold sweep (documented as a
+scope simplification in KNOWN_GAPS.md). AP follows the standard
+VOC2012-style all-points interpolated precision-recall curve via a
+score-ordered greedy match (highest-confidence prediction gets first claim
+on the nearest unmatched GT box) — verified against a known textbook
+example (AP=0.833 for a TP/FP/TP/FP pattern with 2 GT boxes) before
+trusting it in the pipeline.
+
+**Consequences:** `camera_only` pseudo-labels have no real 3D center
+(`[0,0,0]` sentinel) and are excluded from evaluation entirely — only
+`matched`/`lidar_only` rows are 3D-grounded enough to score. `overall`
+metrics use mAP (mean of per-class AP) for the headline number, with
+micro-averaged precision/recall/F1 — matches don't get pooled across
+classes (a car prediction can never "match" a pedestrian GT box).
+
+### ADR-020: Simplified ground-truth schema (eval-only, so it's safe to simplify)
+
+**Context:** Real nuScenes stores category through an `instance.json` ->
+`category.json` join, not directly on `sample_annotation`. Implementing
+that full join adds real complexity for a table that — per the dataset's
+own license and this repo's Dataset Notice — is *never* a pipeline input,
+only something to score against.
+
+**Decision:** `ground_truth.category_name` is flattened directly onto each
+row; `size_whl` uses FORGE's own `[width, height, length]` order (matching
+`detections_3d`), not nuScenes' native `[width, length, height]`. Both
+documented deviations in `docs/schemas.md` and `KNOWN_GAPS.md`, not silent
+ones.
+
+**Consequences:** None to the pipeline itself — GT never flows anywhere
+except into `forge evaluate`'s own scoring code, which is internally
+consistent with these choices.
+
+### ADR-021: MLflow (local SQLite) + W&B (offline mode) — zero network calls
+
+**Context:** MLOps experiment tracking / model registry via MLflow and
+W&B is one of the platform's tracked capabilities. Neither needs a hosted
+server or a real account for this scope — MLflow's tracking client works
+against a local SQLite file, and W&B supports a fully offline mode that
+writes run data locally instead of syncing to the cloud.
+
+**Decision:** `forge.evaluate.tracking` uses
+`mlflow.set_tracking_uri("sqlite:///<lake_root>/mlflow/mlflow.db")` and
+`wandb.init(mode="offline", dir=<lake_root>/wandb)`. Both verified
+end-to-end with zero network access before committing. `mlflow-skinny`
+(not full `mlflow`) is the dependency — the client/tracking API without
+the full server/UI stack. Both logging calls are wrapped to log a warning
+and continue rather than raise on failure — losing experiment-tracking
+metadata shouldn't fail an otherwise-successful evaluation run.
+
+**Consequences:** Nothing is ever synced to a real MLflow server or W&B
+cloud project automatically. A user with real accounts could later run
+`wandb sync <dir>` or point `MLFLOW_TRACKING_URI` at a real server — never
+done here. Renamed the `pyproject.toml` extra placeholder from the
+Phase 0-era `mlops` to `evaluate`, matching every other phase's
+command-name convention (`detect2d`, `detect3d`, `track`, `fuse`).

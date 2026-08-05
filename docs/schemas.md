@@ -184,10 +184,51 @@ pseudo-labeling policy.
 **Table class:** `forge.schemas.pseudo_labels.PseudoLabelsTable`
 **Introduced:** Phase 6
 
+### `ground_truth` v1.0
+
+One row per nuScenes human annotation — **evaluation-only**, never a
+pipeline input (see the Dataset Notice in README.md).
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `annotation_id` | `string` | yes | nuScenes `sample_annotation` token |
+| `scene_id` | `string` | yes | Scene this annotation belongs to |
+| `timestamp_us` | `int64` | yes | Sample timestamp (microseconds) |
+| `category_name` | `string` | yes | nuScenes category name (flattened — see DECISIONS.md) |
+| `center_xyz` | `fixed_size_list<double>[3]` | yes | Box center in meters, global/ego frame |
+| `dimensions_whl` | `fixed_size_list<double>[3]` | yes | Box size `[width, height, length]` — FORGE's order |
+| `yaw` | `float32` | yes | Heading in radians, extracted from the annotation quaternion |
+| `num_lidar_pts` | `int32` | yes | Lidar points inside the box, per nuScenes |
+
+**Pydantic model:** `forge.schemas.ground_truth.GroundTruthRecord`
+**Table class:** `forge.schemas.ground_truth.GroundTruthTable`
+**Introduced:** Phase 7
+
+### `eval_metrics` v1.0
+
+One row per class (plus one `overall` row) per evaluation run.
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `eval_run_id` | `string` | yes | Shared by every row from one evaluation run (UUID) |
+| `class_name` | `string` | yes | Category name, or `overall` for the aggregated row |
+| `num_gt` | `int32` | yes | Ground-truth box count for this class |
+| `num_predictions` | `int32` | yes | Pseudo-label prediction count for this class |
+| `num_matched` | `int32` | yes | Predictions matched within the distance threshold |
+| `precision` | `float32` | yes | `num_matched / num_predictions` |
+| `recall` | `float32` | yes | `num_matched / num_gt` |
+| `f1` | `float32` | yes | Harmonic mean of precision and recall |
+| `average_precision` | `float32` | yes | AP from the precision-recall curve (mAP for `overall`) |
+| `distance_threshold_m` | `float32` | yes | BEV center-distance match threshold used |
+| `eval_version` | `string` | yes | Evaluation run/config identifier, e.g. `bev-distance-ap-v1` |
+
+**Pydantic model:** `forge.schemas.eval_metrics.EvalMetricRecord`
+**Table class:** `forge.schemas.eval_metrics.EvalMetricsTable`
+**Introduced:** Phase 7
+
 ## Future Tables (not yet built)
 
-The following tables will be designed in their implementing phases — no stubs:
-
-- `eval_metrics` — Phase 7
+No tables are currently planned beyond Phase 7 — Phases 8+ (curate,
+visualize) work with the tables already defined above.
 
 See [KNOWN_GAPS.md](../KNOWN_GAPS.md) for deferred work.

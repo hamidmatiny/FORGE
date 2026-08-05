@@ -59,7 +59,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 4 | `forge track` — multi-object tracking | ✅ |
 | 5 | `forge fuse` — multi-sensor fusion | ✅ |
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
-| 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ⬜ |
+| 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ⬜ |
 | 9 | Distributed & cloud infra — Ray, Terraform S3/Athena | ⬜ |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
@@ -168,6 +168,23 @@ can work the queue in order of "most valuable to look at first" (classic
 entropy/least-confidence active learning, applied to fused detections
 instead of raw model logits). See `PHASE_6_COMPLETION.md`.
 
+## Evaluation
+
+```bash
+uv sync --extra evaluate --dev
+
+# Scores auto-accepted pseudo-labels against real nuScenes ground truth
+# (eval-only -- see the Dataset Notice above)
+forge evaluate --gt-input-dir /path/to/nuscenes-mini --local
+```
+
+Matches pseudo-labels to ground truth by BEV center distance — the same
+convention nuScenes' own official detection metric uses, not 3D IoU — and
+computes precision/recall/F1 plus mAP (mean average precision, VOC2012-
+style interpolated PR curve) per class and overall. Logs every run to a
+local MLflow SQLite store and an offline W&B run — no network calls, no
+API keys. See `PHASE_7_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -212,6 +229,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 4 completion](PHASE_4_COMPLETION.md)
 - [Phase 5 completion](PHASE_5_COMPLETION.md)
 - [Phase 6 completion](PHASE_6_COMPLETION.md)
+- [Phase 7 completion](PHASE_7_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

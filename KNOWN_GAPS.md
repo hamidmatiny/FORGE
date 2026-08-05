@@ -12,7 +12,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge track` | Phase 4 | ✅ Done — SORT-style Kalman filter + Hungarian IoU; see PHASE_4_COMPLETION.md |
 | `forge fuse` | Phase 5 | ✅ Done — calibrated projection + IoU association; see PHASE_5_COMPLETION.md |
 | `forge label` | Phase 6 | ✅ Done — trust scoring + entropy-based review priority; see PHASE_6_COMPLETION.md |
-| `forge evaluate` | Phase 7 | GT comparison (nuScenes GT evaluation-only) + MLflow/W&B metric logging |
+| `forge evaluate` | Phase 7 | ✅ Done — BEV distance matching, precision/recall/mAP, MLflow+W&B; see PHASE_7_COMPLETION.md |
 | `forge curate` | Phase 8 | LanceDB dedup/search index; dataset curation and export |
 | Ray distributed execution | Phase 9 | `--local` flag reserved on all commands; Ray backend lands with cost-safety ADR (no real cluster in CI) |
 | Terraform AWS lake (S3/Glue/Athena) | Phase 9 | Applied out-of-band only, same policy as Vulcan/PRISM/hydra-data-factory |
@@ -43,6 +43,10 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | label static thresholds | Phase 6+ | `auto_accept_threshold`/`reject_threshold`/`single_modality_discount` are fixed CLI flags, not learned or calibrated against any labeled validation set — there isn't one yet (that's what this pipeline is for) |
 | label no active queue consumption | Phase 6+ | Produces a prioritized `needs_review` list in `pseudo_labels.parquet`, but there's no reviewer UI/workflow to actually consume it and feed decisions back into retraining — that's the natural Phase 7+ extension once real labeled data exists |
 | label doesn't use tracks | Phase 6+ | Scores each fused object independently frame-by-frame; doesn't use track continuity (e.g. "this object was auto-accepted in 9 of the last 10 frames" as an additional trust signal) despite `tracks` existing since Phase 4 |
+| evaluate GT schema simplified | Phase 7+ | `ground_truth.category_name` is flattened directly onto each annotation row; real nuScenes requires an `instance.json` → `category.json` join. Also uses FORGE's own `[w,h,l]` dimension order, not nuScenes' native `[w,l,h]` — never an issue in practice since GT is eval-only |
+| evaluate camera-only exclusion | Phase 7+ | Only `matched`/`lidar_only` pseudo-labels (real 3D centers) are scored against 3D GT; `camera_only` predictions have no 3D grounding and are excluded from evaluation entirely, not just penalized |
+| evaluate no NDS | Phase 7+ | Reports precision/recall/F1/mAP; doesn't implement nuScenes' full NDS (nuScenes Detection Score) composite metric, which also weighs translation/scale/orientation/velocity error |
+| evaluate fixed distance threshold | Phase 7+ | Uses one `--distance-threshold` per run (default 2m), not nuScenes' official multi-threshold sweep (0.5/1/2/4m averaged) |
 | Partial-extras mypy/pytest runs | Operational | mypy type-checks all of `src/forge` regardless of what's installed, and uninstalled extras' tests get `importorskip`-skipped, dragging coverage below threshold — install every extra together (`uv sync --all-extras --dev`, matching CI) before running the full check suite. A narrower extra sync is fine for actually running just that phase's CLI command. See README.md. |
 
 ## Schema Tables (not yet defined)
