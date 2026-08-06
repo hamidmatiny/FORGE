@@ -44,6 +44,8 @@ ray = []
 viz = []
 evaluate = [
     "mlflow-skinny>=2.10",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
     "wandb>=0.16",
 ]
 curate = [

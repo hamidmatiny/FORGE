@@ -478,6 +478,55 @@ evidence, not a confirmed root-cause fix, since the failure couldn't be
 reproduced here — asked for re-verification on the platform where it
 actually occurred.
 
+**Update — this diagnosis was wrong.** See the next entry for the actual
+root cause, found once GitHub Actions CI started failing on this same
+test deterministically and its exact log output became available.
+
+### Fix (real root cause): `mlflow-skinny` needs `sqlalchemy` + `alembic` declared explicitly
+
+**Context:** The fix above didn't actually resolve anything — it was
+diagnosed from a symptom description without the real error text, on a
+sandbox that (unbeknownst to itself) already had `sqlalchemy`/`alembic`
+installed from earlier ad-hoc dependency troubleshooting, which silently
+masked the real problem in every local verification. The real error, once
+visible via CI's actual log output:
+
+```
+UnsupportedModelRegistryStoreURIException: Model registry functionality
+is unavailable; got unsupported URI 'sqlite:///...' for model registry
+data storage. Supported URI schemes are: ['', 'file', 'databricks',
+'databricks-uc', 'uc', 'http', 'https']
+```
+
+`mlflow-skinny` (the lightweight client package, chosen in ADR-021
+specifically to avoid the full server/UI stack) does not declare
+`sqlalchemy` as a dependency at all — confirmed by checking the user's own
+`uv sync --all-extras --dev` output line by line: no `sqlalchemy`, no
+`alembic` anywhere in it. Without `sqlalchemy`, the SQL-backed store
+plugin (used for *both* tracking and registry, not just registry — a
+detail the earlier fix's diagnosis got backwards) can't register itself
+at all, so `sqlite` doesn't even appear as a valid scheme.
+
+**Decision:** Add `sqlalchemy>=2.0` and `alembic>=1.13` explicitly to the
+`[evaluate]` extra in `pyproject.toml`, alongside `mlflow-skinny` and
+`wandb`. No code change to `forge.evaluate.tracking` was needed — the
+previous commit's `set_tracking_uri`/`set_registry_uri` calls were
+already correct once the actual required dependency is present.
+
+**Consequences:** Verified directly and conclusively this time: rebuilt a
+clean environment with *only* the packages `pyproject.toml` now declares
+(no leftover manual installs), confirmed the exact failing test
+(`test_log_to_mlflow_creates_local_sqlite_store`) passes, and confirmed
+the same sqlite URI that previously raised
+`UnsupportedModelRegistryStoreURIException` now works for both tracking
+and registry once `sqlalchemy` is importable. This was a real lesson in
+verification discipline: a manually-patched development sandbox can mask
+a genuinely broken declared-dependency list, and "it works on my machine"
+isn't proof when "my machine" has accumulated ad-hoc fixes the actual
+`pyproject.toml` doesn't produce. The CI failure, once its real log text
+was available, was what actually settled this — not further local
+guessing.
+
 ## Phase 8 — Curation (2026-08-05)
 
 ### ADR-022: Geometric feature vector, not a learned embedding — LanceDB provides the ANN infrastructure either way
@@ -559,3 +608,33 @@ near-duplicates (e.g. the same 2D object detected twice by NMS-adjacent
 boxes) genuinely can't be caught this way without a real appearance-based
 signal — tracked in KNOWN_GAPS.md as a known limitation, not silently
 pretended away.
+
+### Fix: strip ANSI codes before substring-checking CLI output in tests
+
+**Context:** Found via the same CI failure — `test_ingest_requires_input_dir`
+failed only in GitHub Actions (both Python versions), never locally or on
+the user's machine. The actual CI log showed Rich/Click rendering the
+"Missing option" error with per-character ANSI color codes in a way that
+inserted escape sequences *within* the word `--input-dir`, breaking a
+naive `"input-dir" in result.output.lower()` check even though the
+visible text was unchanged. Couldn't precisely reproduce the exact
+rendering trigger locally (tried explicit `COLUMNS` values, unset
+`COLUMNS`, confirmed identical `rich`/`typer`/`click` versions between
+this sandbox and what's locked) — CI's non-interactive terminal-width
+detection differs from a dev sandbox in some way this environment
+couldn't replicate exactly.
+
+**Decision:** Rather than chase the exact rendering trigger, fix the test
+methodology itself: strip ANSI escape codes (`\x1b\[[0-9;]*m`) from
+`result.output` before any substring check, via a shared `_plain()`
+helper. Applied uniformly across every CLI output assertion in
+`tests/test_cli.py`, not just the one that failed — the same class of
+fragility could plausibly hit any of them under the right rendering
+conditions, and fixing the pattern once is more robust than waiting for
+each to fail individually in a future CI run.
+
+**Consequences:** Robust regardless of *why* Rich fragments the text
+(terminal width, environment detection, non-interactive stdin, or
+something else) — this fixes the test's methodology, not a guessed
+specific cause. Verified the full `test_cli.py` suite still passes
+locally after the change.
