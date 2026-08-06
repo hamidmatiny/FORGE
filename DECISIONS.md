@@ -523,3 +523,39 @@ extra (`detect2d`, `detect3d`, `track`, `fuse`, `evaluate`).
 
 **Consequences:** None — it was an unused empty placeholder before this
 phase populated it.
+
+### Fix: camera_only pseudo-labels excluded from geometric dedup (sentinel-geometry collision)
+
+**Context:** Found via real user testing — running `forge curate --decision-filter all`
+on a full pipeline output (300 `camera_only` + 8 `lidar_only` pseudo-labels)
+collapsed 308 rows down to just 11 kept. Root cause: `camera_only`
+pseudo-labels all carry a sentinel `center_xyz=[0,0,0]` /
+`dimensions_whl=[0,0,0]` / `yaw=0.0` (no real 3D grounding, per the
+`fused_objects`/`pseudo_labels` schemas). Every `camera_only` row's
+8-dim feature vector is therefore literally identical
+(`[0,0,0,0,0,0,0,1]`), so within each `(scene_id, class_name)` group they
+all "correctly" matched each other by the letter of the distance
+threshold — but this was a false signal, not real deduplication: 300
+genuinely distinct real 2D detections (different `bbox_xyxy` values) got
+flagged as duplicates of one arbitrary survivor.
+
+**Decision:** Apply the same reasoning `forge.evaluate` already uses for
+the identical underlying problem (see ADR-019's `_3D_GROUNDED_FUSION_TYPES`)
+— only `matched`/`lidar_only` rows (real 3D geometry) go through the
+LanceDB geometric dedup pass. `camera_only` rows pass straight through as
+always-kept, never flagged as a duplicate of anything, since there's no
+reliable geometry to compare them by with the current feature
+representation.
+
+**Consequences:** Verified the fix directly: 5 hand-crafted distinct
+`camera_only` detections (different bboxes, identical sentinel geometry)
+now all correctly stay kept (0 duplicates), where before they'd have
+collapsed to 1. Added two dedicated tests
+(`test_run_curation_camera_only_rows_never_flagged_as_duplicates`,
+`test_run_curation_mixed_grounded_and_ungrounded_rows`) confirming both
+the passthrough behavior and that real geometric dedup still applies
+correctly to `matched`/`lidar_only` rows in the same run. `camera_only`
+near-duplicates (e.g. the same 2D object detected twice by NMS-adjacent
+boxes) genuinely can't be caught this way without a real appearance-based
+signal — tracked in KNOWN_GAPS.md as a known limitation, not silently
+pretended away.

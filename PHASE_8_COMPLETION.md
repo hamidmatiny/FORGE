@@ -29,7 +29,7 @@ search, producing a curated dataset ready for export. Writes a new
 - **`forge curate --distance-threshold --decision-filter --local` CLI**.
   Clean error if the `[curate]` extra (`lancedb`) isn't installed, and if
   `pseudo_labels.parquet` doesn't exist yet.
-- **17 tests** in `tests/test_curate.py` covering the feature-vector math
+- **13 tests** in `tests/test_curate.py` covering the feature-vector math
   (including the heading-wraparound property) and `run_curation`'s
   behavior: near-duplicate flagging, distinct objects staying separate,
   never crossing class or scene boundaries, higher trust always winning
@@ -42,7 +42,7 @@ search, producing a curated dataset ready for export. Writes a new
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/forge            # strict, 50 source files, 0 errors
-uv run pytest -q                  # 136 passed, 90.12% coverage (threshold 80%)
+uv run pytest -q                  # 138 passed, 90.16% coverage (threshold 80%)
 ```
 
 Plus manual end-to-end verification: hand-crafted synthetic pseudo-labels
@@ -51,6 +51,23 @@ scores) and one genuinely distinct pedestrian, ran `forge curate`,
 confirmed the CLI's printed kept/duplicate counts and — critically — that
 `curated.parquet`'s `duplicate_of_id` pointed at exactly the
 higher-trust car, not the lower one.
+
+## A real bug found and fixed via user testing
+
+Running `forge curate --decision-filter all` on a full pipeline output
+initially collapsed 308 pseudo-labels down to just 11 kept. Root cause:
+`camera_only` pseudo-labels all carry a sentinel `[0,0,0]` geometry (no
+real 3D grounding), so every `camera_only` row's feature vector was
+literally identical — the geometric dedup pass "correctly" matched them
+by the letter of the distance threshold, but this was a false signal:
+300 genuinely distinct real 2D detections got flagged as duplicates of
+one arbitrary survivor. Fixed by applying the same reasoning
+`forge.evaluate` already uses for the identical underlying problem
+(ADR-019) — only `matched`/`lidar_only` rows go through geometric dedup;
+`camera_only` rows pass straight through as always-kept. Verified with a
+direct reproduction (5 distinct `camera_only` detections, previously
+collapsed to 1, now correctly all stay separate) and two new tests. Full
+writeup in `DECISIONS.md`.
 
 ## What this phase does *not* claim
 

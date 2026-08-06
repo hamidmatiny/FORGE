@@ -160,3 +160,90 @@ def test_run_curation_preserves_geometry_fields(tmp_path: Path) -> None:
     curated = run_curation(labels, tmp_path / "lancedb")
     assert curated[0].center_xyz == [1.0, 2.0, 3.0]
     assert curated[0].class_name == "vehicle"
+
+
+# --- camera_only exclusion (sentinel geometry can't be meaningfully compared) --
+
+
+def test_run_curation_camera_only_rows_never_flagged_as_duplicates(tmp_path: Path) -> None:
+    """camera_only rows all share the same sentinel [0,0,0] geometry -- comparing
+
+    them geometrically would spuriously collapse distinct real detections
+    into "duplicates" of each other. They must all pass straight through.
+    """
+    labels = [
+        PseudoLabelRecord(
+            pseudo_label_id=f"cam-{i}",
+            fusion_id=f"f-{i}",
+            scene_id="scene-a",
+            timestamp_us=i,
+            fusion_type="camera_only",
+            class_id=1,
+            class_name="vehicle",
+            bbox_xyxy=[float(i), 0.0, float(i) + 1.0, 1.0],
+            center_xyz=[0.0, 0.0, 0.0],
+            dimensions_whl=[0.0, 0.0, 0.0],
+            yaw=0.0,
+            trust_score=0.5,
+            decision="auto_accept",
+            review_priority=0.1,
+            labeler_version="t",
+        )
+        for i in range(5)
+    ]
+    curated = run_curation(labels, tmp_path / "lancedb", decision_filter="all")
+    assert len(curated) == 5
+    assert all(not c.is_duplicate for c in curated)
+    assert all(c.duplicate_of_id == "" for c in curated)
+
+
+def test_run_curation_mixed_grounded_and_ungrounded_rows(tmp_path: Path) -> None:
+    labels = [
+        _label("car-high", "scene-a", "vehicle", [10.0, 0.0, 0.0], trust_score=0.9),
+        _label("car-low-dup", "scene-a", "vehicle", [10.05, 0.0, 0.0], trust_score=0.7),
+        PseudoLabelRecord(
+            pseudo_label_id="cam-only-1",
+            fusion_id="f-cam-1",
+            scene_id="scene-a",
+            timestamp_us=0,
+            fusion_type="camera_only",
+            class_id=1,
+            class_name="vehicle",
+            bbox_xyxy=[0.0, 0.0, 1.0, 1.0],
+            center_xyz=[0.0, 0.0, 0.0],
+            dimensions_whl=[0.0, 0.0, 0.0],
+            yaw=0.0,
+            trust_score=0.6,
+            decision="auto_accept",
+            review_priority=0.1,
+            labeler_version="t",
+        ),
+        PseudoLabelRecord(
+            pseudo_label_id="cam-only-2",
+            fusion_id="f-cam-2",
+            scene_id="scene-a",
+            timestamp_us=0,
+            fusion_type="camera_only",
+            class_id=1,
+            class_name="vehicle",
+            bbox_xyxy=[5.0, 5.0, 6.0, 6.0],
+            center_xyz=[0.0, 0.0, 0.0],
+            dimensions_whl=[0.0, 0.0, 0.0],
+            yaw=0.0,
+            trust_score=0.55,
+            decision="auto_accept",
+            review_priority=0.1,
+            labeler_version="t",
+        ),
+    ]
+    curated = run_curation(labels, tmp_path / "lancedb", distance_threshold=1.0)
+    by_id = {c.pseudo_label_id: c for c in curated}
+
+    # Real geometric dedup still applies to matched/lidar_only rows.
+    assert not by_id["car-high"].is_duplicate
+    assert by_id["car-low-dup"].is_duplicate
+    assert by_id["car-low-dup"].duplicate_of_id == "car-high"
+
+    # camera_only rows are never compared against anything, including each other.
+    assert not by_id["cam-only-1"].is_duplicate
+    assert not by_id["cam-only-2"].is_duplicate

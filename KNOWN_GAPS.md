@@ -50,6 +50,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | curate not a learned embedding | Phase 8+ | The LanceDB vector is a deterministic 8-dim geometric feature (center/dims/heading), not a learned visual embedding — no trained embedding model exists in this pipeline to produce one |
 | curate no export format | Phase 8+ | Writes `curated.parquet` (kept + duplicate-flagged rows); doesn't yet export to a training-ready format (COCO JSON, WebDataset, etc.) |
 | curate single distance threshold | Phase 8+ | One `--distance-threshold` for all classes; a pedestrian and a bus arguably need different near-duplicate distance tolerances given their different real-world sizes |
+| curate camera_only never deduped | Phase 8+ | `camera_only` pseudo-labels have no real 3D center (sentinel `[0,0,0]`) and are excluded from geometric dedup entirely (passed straight through as always-kept) — a genuine 2D-only near-duplicate (e.g. two overlapping NMS-adjacent boxes on the same object) won't be caught without an appearance-based or 2D-IoU-based signal, which doesn't exist here |
 | Partial-extras mypy/pytest runs | Operational | mypy type-checks all of `src/forge` regardless of what's installed, and uninstalled extras' tests get `importorskip`-skipped, dragging coverage below threshold — install every extra together (`uv sync --all-extras --dev`, matching CI) before running the full check suite. A narrower extra sync is fine for actually running just that phase's CLI command. See README.md. |
 
 ## Schema Tables (not yet defined)
