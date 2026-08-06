@@ -19,7 +19,7 @@ nuScenes-mini (eval GT, never a pipeline input)
 [4] track          --> detections associated into per-object tracks
       |
       v
-[5] fuse           --> camera+lidar+radar tracks merged into one fused-track table
+[5] fuse           --> camera+lidar tracks merged into one fused-track table
       |
       v
 [6] label           --> active-learning sample selection + pseudo-label generation,
@@ -75,7 +75,7 @@ appears once its phase is built and tested.
 | Active learning & pseudo-labeling, CV, model training | **6 — label** | Confidence-gated pseudo-label generation; low-confidence frames route to a review queue instead of auto-accept |
 | 2D/3D object detection | **2, 3 — detect2d, detect3d** | Camera 2D boxes; lidar 3D boxes / BEV |
 | Tracking | **4 — track** | Multi-object association across frames |
-| Sensor fusion | **5 — fuse** | Camera + lidar + radar track fusion |
+| Sensor fusion | **5 — fuse** | Camera + lidar track fusion (radar not handled, see KNOWN_GAPS.md) |
 | Semantic segmentation / BEV | **3 — detect3d** | BEV representation as part of the 3D head |
 | Scaled MLOps: ML frameworks, experiment tracking, model registry (MLflow, W&B) | **7 — evaluate** | Run params/metrics logged to MLflow (self-hosted) and W&B (offline mode) |
 | ML metrics & evaluation quality | **7 — evaluate** | Auto-label vs. nuScenes-GT scoring and quality tracking |
