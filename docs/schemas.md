@@ -226,9 +226,35 @@ One row per class (plus one `overall` row) per evaluation run.
 **Table class:** `forge.schemas.eval_metrics.EvalMetricsTable`
 **Introduced:** Phase 7
 
+### `curated` v1.0
+
+One row per curated pseudo-label — kept as-is, or flagged as a
+near-duplicate of a higher-trust row.
+
+| Column | PyArrow Type | Required | Description |
+|--------|--------------|----------|-------------|
+| `pseudo_label_id` | `string` | yes | Source `pseudo_labels.pseudo_label_id` |
+| `scene_id` | `string` | yes | Scene this object belongs to |
+| `timestamp_us` | `int64` | yes | Sample timestamp (microseconds) |
+| `class_id` | `int32` | yes | Class index |
+| `class_name` | `string` | yes | Human-readable class label |
+| `bbox_xyxy` | `fixed_size_list<double>[4]` | yes | Carried through from `pseudo_labels` |
+| `center_xyz` | `fixed_size_list<double>[3]` | yes | Carried through from `pseudo_labels` |
+| `dimensions_whl` | `fixed_size_list<double>[3]` | yes | Carried through from `pseudo_labels` |
+| `yaw` | `float32` | yes | Carried through from `pseudo_labels` |
+| `trust_score` | `float32` | yes | Carried through from `pseudo_labels` |
+| `is_duplicate` | `bool` | yes | True if a higher-trust near-duplicate was kept instead |
+| `duplicate_of_id` | `string` | yes | `pseudo_label_id` of the kept near-duplicate, or `""` |
+| `curation_version` | `string` | yes | Curation run/config identifier, e.g. `lancedb-geometric-dedup-v1` |
+
+**Pydantic model:** `forge.schemas.curated.CuratedRecord`
+**Table class:** `forge.schemas.curated.CuratedTable`
+**Introduced:** Phase 8
+
 ## Future Tables (not yet built)
 
-No tables are currently planned beyond Phase 7 — Phases 8+ (curate,
-visualize) work with the tables already defined above.
+No tables are currently planned beyond Phase 8 — Phase 10 (visualize)
+works with the tables already defined above; Phase 9 has no lake table
+(infrastructure only) and Phase 11 is documentation.
 
 See [KNOWN_GAPS.md](../KNOWN_GAPS.md) for deferred work.

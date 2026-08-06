@@ -26,7 +26,6 @@ KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
 
 # Phase assignments for commands not yet implemented.
 PHASE_MAP: dict[str, int] = {
-    "curate": 8,
     "visualize": 10,
 }
 
@@ -691,10 +690,75 @@ def evaluate(
 
 @app.command()
 def curate(
+    distance_threshold: Annotated[
+        float,
+        typer.Option(
+            "--distance-threshold", help="Max feature-space distance to count as a near-duplicate."
+        ),
+    ] = 1.0,
+    decision_filter: Annotated[
+        str,
+        typer.Option("--decision-filter", help="Which pseudo_labels.decision to curate."),
+    ] = "auto_accept",
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
     """Curate, deduplicate (LanceDB vector search), and export annotation datasets."""
-    _not_implemented("curate", local=local)
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="curate",
+        args={
+            "distance_threshold": distance_threshold,
+            "decision_filter": decision_filter,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    labels_path = settings.data_lake_root / "pseudo_labels.parquet"
+    if not labels_path.exists():
+        console.print(
+            f"[red]Error:[/red] {labels_path} not found. Run 'forge label' first.", highlight=False
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        from forge.curate import run_curation
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge curate requires the [curate] extra (lancedb). "
+            "Install with: uv sync --extra curate",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    from forge.schemas import CuratedTable, PseudoLabelsTable
+
+    pseudo_labels = PseudoLabelsTable.read_parquet(str(labels_path))
+    lancedb_path = settings.data_lake_root / "lancedb"
+    curated = run_curation(
+        pseudo_labels,
+        lancedb_path,
+        distance_threshold=distance_threshold,
+        decision_filter=decision_filter,
+    )
+
+    output_path = settings.data_lake_root / "curated.parquet"
+    CuratedTable.write_parquet(curated, str(output_path))
+
+    num_kept = sum(1 for c in curated if not c.is_duplicate)
+    num_duplicates = sum(1 for c in curated if c.is_duplicate)
+    console.print(
+        f"[green]OK[/green] curated {len(curated)} labels ({num_kept} kept, "
+        f"{num_duplicates} near-duplicates) -> {output_path}",
+        highlight=False,
+    )
 
 
 @app.command()

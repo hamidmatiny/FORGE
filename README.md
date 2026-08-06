@@ -60,7 +60,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 5 | `forge fuse` — multi-sensor fusion | ✅ |
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
-| 8 | `forge curate` — LanceDB dedup/search, dataset export | ⬜ |
+| 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
 | 9 | Distributed & cloud infra — Ray, Terraform S3/Athena | ⬜ |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
 | 11 | Productionization — runbook, demo script | ⬜ |
@@ -185,6 +185,21 @@ style interpolated PR curve) per class and overall. Logs every run to a
 local MLflow SQLite store and an offline W&B run — no network calls, no
 API keys. See `PHASE_7_COMPLETION.md`.
 
+## Curation
+
+```bash
+uv sync --extra curate --dev
+forge curate --distance-threshold 1.0 --local
+```
+
+Flags near-duplicate pseudo-labels using LanceDB vector search over an
+8-dim geometric feature vector (center, dimensions, heading) — not a
+learned visual embedding, since no trained embedding model exists in this
+pipeline. Processes candidates highest-`trust_score`-first; every
+near-duplicate is flagged with `duplicate_of_id` rather than dropped, so
+the decision stays auditable. Never dedups across scenes or classes, even
+at identical coordinates. See `PHASE_8_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -230,6 +245,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 5 completion](PHASE_5_COMPLETION.md)
 - [Phase 6 completion](PHASE_6_COMPLETION.md)
 - [Phase 7 completion](PHASE_7_COMPLETION.md)
+- [Phase 8 completion](PHASE_8_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)

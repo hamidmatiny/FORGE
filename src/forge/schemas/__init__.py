@@ -2,6 +2,7 @@
 
 from forge.schemas.base import BaseTable, SchemaVersion
 from forge.schemas.calibration import CalibrationRecord, CalibrationTable
+from forge.schemas.curated import CuratedRecord, CuratedTable
 from forge.schemas.detections_2d import Detection2DRecord, Detections2DTable
 from forge.schemas.detections_3d import Detection3DRecord, Detections3DTable
 from forge.schemas.ego_pose import EgoPoseRecord, EgoPoseTable
@@ -16,6 +17,8 @@ __all__ = [
     "BaseTable",
     "CalibrationRecord",
     "CalibrationTable",
+    "CuratedRecord",
+    "CuratedTable",
     "Detection2DRecord",
     "Detection3DRecord",
     "Detections2DTable",

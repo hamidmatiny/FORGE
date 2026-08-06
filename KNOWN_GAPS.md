@@ -13,7 +13,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge fuse` | Phase 5 | ✅ Done — calibrated projection + IoU association; see PHASE_5_COMPLETION.md |
 | `forge label` | Phase 6 | ✅ Done — trust scoring + entropy-based review priority; see PHASE_6_COMPLETION.md |
 | `forge evaluate` | Phase 7 | ✅ Done — BEV distance matching, precision/recall/mAP, MLflow+W&B; see PHASE_7_COMPLETION.md |
-| `forge curate` | Phase 8 | LanceDB dedup/search index; dataset curation and export |
+| `forge curate` | Phase 8 | ✅ Done — LanceDB near-duplicate search over a geometric feature vector; see PHASE_8_COMPLETION.md |
 | Ray distributed execution | Phase 9 | `--local` flag reserved on all commands; Ray backend lands with cost-safety ADR (no real cluster in CI) |
 | Terraform AWS lake (S3/Glue/Athena) | Phase 9 | Applied out-of-band only, same policy as Vulcan/PRISM/hydra-data-factory |
 | `forge visualize` | Phase 10 | rerun.io / Foxglove MCAP / FiftyOne; requires `[viz]` extras |
@@ -47,6 +47,9 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | evaluate camera-only exclusion | Phase 7+ | Only `matched`/`lidar_only` pseudo-labels (real 3D centers) are scored against 3D GT; `camera_only` predictions have no 3D grounding and are excluded from evaluation entirely, not just penalized |
 | evaluate no NDS | Phase 7+ | Reports precision/recall/F1/mAP; doesn't implement nuScenes' full NDS (nuScenes Detection Score) composite metric, which also weighs translation/scale/orientation/velocity error |
 | evaluate fixed distance threshold | Phase 7+ | Uses one `--distance-threshold` per run (default 2m), not nuScenes' official multi-threshold sweep (0.5/1/2/4m averaged) |
+| curate not a learned embedding | Phase 8+ | The LanceDB vector is a deterministic 8-dim geometric feature (center/dims/heading), not a learned visual embedding — no trained embedding model exists in this pipeline to produce one |
+| curate no export format | Phase 8+ | Writes `curated.parquet` (kept + duplicate-flagged rows); doesn't yet export to a training-ready format (COCO JSON, WebDataset, etc.) |
+| curate single distance threshold | Phase 8+ | One `--distance-threshold` for all classes; a pedestrian and a bus arguably need different near-duplicate distance tolerances given their different real-world sizes |
 | Partial-extras mypy/pytest runs | Operational | mypy type-checks all of `src/forge` regardless of what's installed, and uninstalled extras' tests get `importorskip`-skipped, dragging coverage below threshold — install every extra together (`uv sync --all-extras --dev`, matching CI) before running the full check suite. A narrower extra sync is fine for actually running just that phase's CLI command. See README.md. |
 
 ## Schema Tables (not yet defined)

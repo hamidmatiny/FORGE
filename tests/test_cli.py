@@ -148,3 +148,15 @@ def test_evaluate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
     )
     assert result.exit_code == 1
     assert "forge label" in result.output
+
+
+def test_curate_requires_local_flag() -> None:
+    result = runner.invoke(app, ["curate"])
+    assert result.exit_code == 1
+    assert "Phase 9" in result.output
+
+
+def test_curate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["curate", "--local"], env={"FORGE_DATA_LAKE_ROOT": str(tmp_path)})
+    assert result.exit_code == 1
+    assert "forge label" in result.output

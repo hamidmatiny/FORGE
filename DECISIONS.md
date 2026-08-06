@@ -477,3 +477,49 @@ that this is the most likely fix based on the symptom and available
 evidence, not a confirmed root-cause fix, since the failure couldn't be
 reproduced here — asked for re-verification on the platform where it
 actually occurred.
+
+## Phase 8 — Curation (2026-08-05)
+
+### ADR-022: Geometric feature vector, not a learned embedding — LanceDB provides the ANN infrastructure either way
+
+**Context:** Dataset curation needs near-duplicate detection: the same
+physical object often gets multiple slightly-different detections (across
+frames, or camera+lidar producing separately-fused rows). A learned visual
+embedding (from a trained CNN/transformer) would be the "real" way to do
+this in a mature system, but no trained embedding model exists anywhere in
+this pipeline — Phase 2/3's detectors are randomly initialized, not
+trained on real labels (see their COMPLETION docs for why).
+
+**Decision:** Build an 8-dim deterministic feature vector directly from
+each pseudo-label's own geometry: center (3), dimensions (3), and heading
+encoded as `(sin, cos)` rather than the raw angle (2) — so that -π and +π,
+the same heading, land close together in feature space instead of maximally
+far apart. LanceDB provides genuine ANN search infrastructure over this
+vector regardless of what generated it; `forge curate` processes
+candidates highest-`trust_score`-first, incrementally inserting each kept
+object and querying LanceDB (filtered by `scene_id` + `class_name`, so
+dedup never crosses scene or class boundaries even at identical
+coordinates) for the nearest already-kept neighbor before deciding.
+
+**Consequences:** This genuinely catches "same object, slightly different
+box" duplicates — verified by test with near-identical and clearly-distinct
+synthetic detections. It's explicitly *not* appearance-based: two visually
+different objects that happen to share almost the same position/size/
+heading would incorrectly dedup, and two detections of the same object
+from very different viewing angles wouldn't necessarily land close in this
+feature space. Documented, not hidden, in KNOWN_GAPS.md. Every duplicate
+is flagged with `duplicate_of_id`, never silently dropped, keeping the
+decision auditable — same principle as `fused_objects`' three-way tagging
+and `pseudo_labels`' three-way decision routing.
+
+### ADR-023: Renamed the `pyproject.toml` extra placeholder `vectordb` -> `curate`
+
+**Context:** Same naming-consistency cleanup as ADR-021's `mlops` ->
+`evaluate` rename — the Phase 0-era placeholder extras were named after
+the *technology* (`vectordb`), not the command, unlike every other phase's
+extra (`detect2d`, `detect3d`, `track`, `fuse`, `evaluate`).
+
+**Decision:** Renamed to `curate`, matching the `forge curate` command.
+
+**Consequences:** None — it was an unused empty placeholder before this
+phase populated it.
