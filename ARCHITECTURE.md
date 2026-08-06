@@ -80,7 +80,7 @@ appears once its phase is built and tested.
 | Scaled MLOps: ML frameworks, experiment tracking, model registry (MLflow, W&B) | **7 — evaluate** | Run params/metrics logged to MLflow (self-hosted) and W&B (offline mode) |
 | ML metrics & evaluation quality | **7 — evaluate** | Auto-label vs. nuScenes-GT scoring and quality tracking |
 | Distributed ML (PyTorch, Lightning, Ray) | **2–8 (training), 9 (Ray)** | PyTorch Lightning for detector training; Ray as the distributed execution backend (local multi-process, wired into detect2d's and detect3d's `--distributed` inference paths) |
-| Model data curation — Parquet (PyArrow, Daft, Pandas) | **1, 8 — ingest, curate** | Parquet lake with PyArrow/Pandas; Daft considered for Phase 8 large-scan curation |
+| Model data curation — Parquet (PyArrow, Daft, Pandas) | **1, 8 — ingest, curate** | Parquet lake built directly on PyArrow (via the `BaseTable` schema pattern); Daft/Pandas aren't actually used anywhere in the repo, see KNOWN_GAPS.md |
 | Python dev, CI (GitHub Actions), Docker | **0 — foundation** | Already in place: ruff, mypy strict, pytest ≥80% coverage, GH Actions matrix, Docker |
 | Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); Foxglove MCAP export (10) |
 | Data viz: OpenGL/three.js, foxglove, FiftyOne, Tableau | **10 — visualize** | rerun.io (OpenGL-backed) + Foxglove MCAP + FiftyOne review app |

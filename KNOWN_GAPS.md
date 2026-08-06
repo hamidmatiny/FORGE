@@ -61,7 +61,4 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | Terraform not `terraform validate`-checked | Phase 9 | No `terraform` binary was available in the development sandbox that built this; the `.tf` files were checked for HCL *syntax* validity with `python-hcl2`, not full semantic validation against the AWS provider schema (which `terraform validate`/`plan` would catch, e.g. a typo'd argument name). |
 | SQS queue has no consumer | Phase 9 | The Lambda publishes to `forge-ingest-notifications-<env>`, but nothing consumes it yet — that's the Ray/ECS ingest worker's job, which doesn't exist. |
 | Glue catalog covers one table | Phase 9 | Only `pseudo_labels` has a Glue table definition; the other ~9 lake tables would follow the identical mechanical pattern (map the Arrow schema to Glue/Hive types) but aren't built out. |
-
-## Schema Tables (not yet defined)
-
-Additional Parquet tables will be added in their implementing phases. Phase 0 defines **frames v1** only.
+| Daft / Pandas never used | Phase 1+ | The lake is built directly on PyArrow via `BaseTable`; despite `ARCHITECTURE.md` previously implying otherwise, `pandas` and `daft` were never actually added as dependencies or used anywhere in the repo — fixed to state that accurately rather than leaving the earlier overclaim standing. |
