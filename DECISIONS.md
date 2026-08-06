@@ -638,3 +638,78 @@ each to fail individually in a future CI run.
 something else) — this fixes the test's methodology, not a guessed
 specific cause. Verified the full `test_cli.py` suite still passes
 locally after the change.
+
+## Phase 9 (partial) — Infrastructure: Lambda (2026-08-06)
+
+### ADR-024: Lambda as the "notify," not the "compute," layer
+
+**Context:** Phase 9's plan (ARCHITECTURE.md) already covered Ray
+(distributed compute) and Terraform-provisioned S3/Glue/Athena. Lambda
+wasn't originally in scope, but belongs in the same "cloud dev" bucket as
+S3/Athena/ECS/DynamoDB/Step Functions. AWS Lambda has hard execution time
+(15 min max) and memory limits that make it structurally unsuitable for
+the actual ML pipeline stages (training, inference, fusion) — using it
+for real compute would be the wrong tool for the job regardless of
+resource limits.
+
+**Decision:** Build a real, narrowly-scoped Lambda: an S3-upload
+validator. Triggered on `s3:ObjectCreated:*` for the raw-data bucket, it
+checks whether the uploaded key matches the nuScenes-devkit layout
+(`forge.ingest.nuscenes`'s same convention: `<version>/*.json` or
+`samples|sweeps/**`, optionally under an arbitrary prefix for
+multi-dataset buckets) and publishes a structured notification to SQS for
+a downstream Ray/ECS worker to eventually consume. Lambda does the
+"notify," never the "compute."
+
+**Consequences:** This is genuinely useful serverless event-driven
+architecture (the classic S3 → Lambda → SQS → worker fan-out pattern),
+not just infrastructure-as-code for its own sake. But it's also
+incomplete on its own — nothing consumes the SQS queue yet (that's the
+Ray/ECS worker, still open, see KNOWN_GAPS.md), so this Lambda currently
+notifies into a queue nothing reads from. Tracked honestly, not hidden.
+
+### ADR-025: Lambda handler lives outside `src/forge/`
+
+**Context:** Every other phase's code lives under `src/forge/<phase>/`,
+installable via the main package's extras. Lambda deployment packages are
+conventionally standalone zip-deployed modules, not part of a larger
+installable package — bundling `handler.py` inside `src/forge/` would
+mean either dragging the whole `forge` package (and all its extras' heavy
+transitive dependencies) into the Lambda deployment zip, or awkwardly
+special-casing the build.
+
+**Decision:** `infra/lambda/ingest_trigger/handler.py` lives outside
+`src/forge/` entirely, matching how it would really be packaged and
+deployed. `pyproject.toml`'s `pytest.ini_options.pythonpath` adds
+`infra/lambda/ingest_trigger` so `tests/test_lambda_ingest_trigger.py`
+can still import it directly, the same way pytest would in any
+standalone-Lambda-module testing setup.
+
+**Consequences:** `--cov=forge` (the coverage gate every other phase
+counts toward) doesn't measure this file at all — intentional, not an
+oversight, since it's genuinely a different deployable artifact.
+`mypy src/forge` (CI's normal scope) doesn't check it either, so CI got
+an explicit second `mypy infra/lambda/ingest_trigger/handler.py` step
+added alongside it, keeping the same strict-typing bar without expanding
+what `--cov`/the main mypy invocation measure.
+
+### Fix found while building this: the S3-key regex didn't handle multi-dataset buckets
+
+**Context:** The first version of `validate_key`/`_infer_dataset_root`
+anchored the nuScenes layout pattern to the start of the S3 key
+(`^v1.0-mini/...` or `^samples/...`). Manually testing it against a
+realistic multi-dataset bucket layout
+(`fleet-a/2026-01/samples/CAM_FRONT/x.jpg` — a real bucket would likely
+separate multiple nuScenes drops under prefixes like this) immediately
+failed: `build_notification` raised `ValueError`, correctly saying it
+didn't match, but incorrectly — the file *is* valid nuScenes layout, just
+not at the bucket root.
+
+**Fix:** Added a non-greedy `(?P<root>.*?)` capture group ahead of the
+recognized layout pattern in both regexes, so an arbitrary prefix is
+allowed and captured as `dataset_root` rather than rejected. Verified
+directly: both the bucket-root case (`v1.0-mini/scene.json`, empty
+`dataset_root`) and the prefixed case
+(`fleet-a/2026-01/samples/CAM_FRONT/x.jpg`, `dataset_root =
+"fleet-a/2026-01/"`) now work correctly, confirmed by test before this
+was committed, not after.

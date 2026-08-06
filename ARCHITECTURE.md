@@ -37,6 +37,10 @@ nuScenes-mini (eval GT, never a pipeline input)
 Cross-cutting (Phase 9, no dedicated CLI verb):
   - Ray: distributed execution mode for [2]-[8] via a shared --distributed flag
   - Terraform: S3 lake + Glue/Athena catalog, applied out-of-band only (never in CI)
+  - Lambda: S3-upload-triggered validator that publishes valid nuScenes
+    uploads to SQS for a downstream Ray/ECS ingest worker to consume
+    (infra/lambda/ingest_trigger/) — Lambda handles the lightweight
+    "notify something happened" layer; Ray/ECS handle the actual work
 ```
 
 ## Why this shape
@@ -75,7 +79,7 @@ appears once its phase is built and tested.
 | Python dev, CI (GitHub Actions), Docker | **0 — foundation** | Already in place: ruff, mypy strict, pytest ≥80% coverage, GH Actions matrix, Docker |
 | Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); Foxglove MCAP export (10) |
 | Data viz: OpenGL/three.js, foxglove, FiftyOne, Tableau | **10 — visualize** | rerun.io (OpenGL-backed) + Foxglove MCAP + FiftyOne review app |
-| Cloud dev: Terraform, AWS (S3, Athena, etc.) | **9 — infra** | Terraform-provisioned S3 lake + Glue/Athena catalog, applied manually/out-of-band |
+| Cloud dev: Terraform, AWS (S3, Athena, Lambda, etc.) | **9 — infra** | Terraform-provisioned S3 lake + Glue/Athena catalog + a real Lambda (S3-upload validator → SQS), applied manually/out-of-band |
 | Cloud orchestration, model inference orchestration | **9 — infra** | Ray distributed execution across stages |
 | Guidelines/standards, technical leadership | **11 — productionization** | Runbook + engineering-bar docs, same pattern as the sibling repos |
 
@@ -92,7 +96,7 @@ appears once its phase is built and tested.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | Not started |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Not started |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | Not started |
-| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena (no CLI verb) | Not started |
+| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda (no CLI verb) | Lambda done; Ray + Glue/Athena still open |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | Not started |
 | 11 | Productionization — runbook, demo script, engineering-bar docs | Not started |
 

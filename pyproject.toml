@@ -51,7 +51,9 @@ evaluate = [
 curate = [
     "lancedb>=0.10",
 ]
-aws = []
+aws = [
+    "boto3>=1.34",
+]
 
 [dependency-groups]
 dev = [
@@ -96,11 +98,12 @@ module = "pyarrow.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*", "mlflow.*", "wandb.*", "lancedb.*"]
+module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*", "mlflow.*", "wandb.*", "lancedb.*", "boto3.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["infra/lambda/ingest_trigger"]
 addopts = "--cov=forge --cov-report=term-missing --cov-fail-under=80"
 
 [tool.coverage.run]

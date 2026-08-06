@@ -61,7 +61,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
-| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena | ⬜ |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Lambda done |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
 | 11 | Productionization — runbook, demo script | ⬜ |
 
@@ -200,6 +200,23 @@ near-duplicate is flagged with `duplicate_of_id` rather than dropped, so
 the decision stays auditable. Never dedups across scenes or classes, even
 at identical coordinates. See `PHASE_8_COMPLETION.md`.
 
+## Infrastructure (Phase 9, partial — Lambda done, Ray + Glue/Athena open)
+
+```bash
+uv sync --extra aws --dev
+uv run pytest tests/test_lambda_ingest_trigger.py -v
+```
+
+`infra/lambda/ingest_trigger/handler.py`: an S3-upload-triggered Lambda
+that validates uploads against the nuScenes-devkit layout and publishes
+valid ones to SQS for a downstream Ray/ECS ingest worker to consume —
+Lambda handles the lightweight "notify something happened" layer, never
+the actual pipeline work (execution time/memory limits make it unsuitable
+for that). `infra/terraform/`: the S3 bucket, SQS queue, IAM role, and S3
+event-notification wiring, deployed out-of-band only — never applied in
+CI, matching every sibling repo's cost-safety policy. See
+`PHASE_9_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -246,6 +263,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 6 completion](PHASE_6_COMPLETION.md)
 - [Phase 7 completion](PHASE_7_COMPLETION.md)
 - [Phase 8 completion](PHASE_8_COMPLETION.md)
+- [Phase 9 completion](PHASE_9_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)
