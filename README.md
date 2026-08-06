@@ -61,7 +61,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
-| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Lambda done |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Ray (local) + Lambda done |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
 | 11 | Productionization — runbook, demo script | ⬜ |
 
@@ -200,21 +200,32 @@ near-duplicate is flagged with `duplicate_of_id` rather than dropped, so
 the decision stays auditable. Never dedups across scenes or classes, even
 at identical coordinates. See `PHASE_8_COMPLETION.md`.
 
-## Infrastructure (Phase 9, partial — Lambda done, Ray + Glue/Athena open)
+## Infrastructure (Phase 9, partial — Ray + Lambda done, ECS/rest of Glue-Athena open)
 
 ```bash
-uv sync --extra aws --dev
-uv run pytest tests/test_lambda_ingest_trigger.py -v
+uv sync --extra detect2d --extra aws --dev
+uv run pytest tests/test_distributed.py tests/test_lambda_ingest_trigger.py -v
+
+# distributed inference (local Ray, no cluster) instead of --local
+forge detect2d --mode infer --checkpoint <ckpt> --images-root <dir> --distributed
 ```
+
+`forge.distributed.run_distributed_map`: a Ray-backed local-multi-process
+map utility, wired into `detect2d`'s per-frame inference. `--distributed`
+runs each frame's inference across local CPU cores via Ray instead of
+sequentially — same results either way, just execution strategy. No real
+Ray cluster is provisioned (local CPU only, same cost-safety policy as
+everywhere else).
 
 `infra/lambda/ingest_trigger/handler.py`: an S3-upload-triggered Lambda
 that validates uploads against the nuScenes-devkit layout and publishes
 valid ones to SQS for a downstream Ray/ECS ingest worker to consume —
 Lambda handles the lightweight "notify something happened" layer, never
 the actual pipeline work (execution time/memory limits make it unsuitable
-for that). `infra/terraform/`: the S3 bucket, SQS queue, IAM role, and S3
-event-notification wiring, deployed out-of-band only — never applied in
-CI, matching every sibling repo's cost-safety policy. See
+for that). `infra/terraform/`: the S3 buckets, SQS queue, IAM role, Lambda
+wiring, and a Glue/Athena catalog (one representative table,
+`pseudo_labels`) — deployed out-of-band only, never applied in CI,
+matching every sibling repo's cost-safety policy. See
 `PHASE_9_COMPLETION.md`.
 
 ## Ingest

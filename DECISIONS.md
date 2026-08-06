@@ -713,3 +713,64 @@ directly: both the bucket-root case (`v1.0-mini/scene.json`, empty
 (`fleet-a/2026-01/samples/CAM_FRONT/x.jpg`, `dataset_root =
 "fleet-a/2026-01/"`) now work correctly, confirmed by test before this
 was committed, not after.
+
+## Phase 9 (continued) — Ray + Glue/Athena (2026-08-06)
+
+### ADR-026: Ray wired into detect2d, verified with a mocked API boundary — real multi-process Ray can't run in this development sandbox
+
+**Context:** Phase 9's original plan called for a Ray distributed
+execution mode. `forge.distributed.run_distributed_map` wraps `ray.init`/
+`ray.remote`/`ray.get`/`ray.shutdown` for a local (no-cluster,
+no-cloud-spend) parallel map, wired into `detect2d`'s per-frame inference
+as the flagship example via a new `--distributed` flag (`--local` still
+works exactly as before).
+
+Ray's actual multi-process runtime could not be verified in this
+development sandbox — three different configurations (plain defaults,
+constrained `object_store_memory` + explicit temp dir, and Ray's own
+`local_mode` — since removed in Ray 2.56, "no longer supported") all
+hang/crash inside Ray's C++ core (`CoreWorkerMemoryStore::GetImpl`), most
+likely a shared-memory/IPC syscall restriction this sandbox's container
+imposes that Ray's plasma object store depends on. The *sequential*
+(`distributed=False`) path was verified for real, including through the
+actual `forge detect2d --local` CLI end-to-end.
+
+**Decision:** Ship the Ray integration anyway, but be explicit about what
+was and wasn't verified. The `distributed=True` code path is tested by
+mocking `ray`'s module boundary (`tests/test_distributed.py`) — verifying
+this module's own logic (calls `ray.init` only when not already running,
+wraps the function once and calls `.remote()` per item, always calls
+`ray.shutdown` even if `ray.get` raises, skips Ray's lifecycle entirely
+when Ray was already initialized by the caller) without depending on
+Ray's own internals actually executing in this environment. Same boundary-
+mocking approach already used for AWS in `tests/test_lambda_ingest_trigger.py`
+— trusting a well-tested third-party library's own correctness while
+verifying *this code's* usage of it.
+
+**Consequences:** `--distributed` needs real verification on a machine or
+CI runner without this sandbox's constraint before it's trusted in
+production — tracked honestly in KNOWN_GAPS.md, not silently assumed
+working. Only `detect2d` is wired up so far; the other stages
+(detect3d/track/fuse/label/evaluate/curate) still run single-process
+regardless of this flag existing on `detect2d` — `run_distributed_map`
+itself is general-purpose and reusable for them later.
+
+### ADR-027: Glue/Athena catalog covers one representative table, not all of them
+
+**Context:** The lake now has ~10 tables (frames, calibration,
+detections_2d/3d, tracks, fused_objects, pseudo_labels, ground_truth,
+eval_metrics, curated). Writing a full Glue table definition for every one
+of them is mechanical repetition of the identical pattern (map the Arrow
+schema to Glue/Hive column types, same Parquet SerDe) — real value per
+table, but a lot of near-identical HCL for one Phase 9 pass.
+
+**Decision:** `infra/terraform/glue_athena.tf` defines the Glue database,
+an Athena workgroup + results bucket, and one full table:
+`pseudo_labels` — arguably the most immediately useful one to query
+directly ("what did the pipeline auto-label vs reject, and why"). The
+other ~9 tables are documented as the same mechanical pattern, not built.
+
+**Consequences:** Extending to the remaining tables is genuinely
+low-risk, repetitive follow-up work (copy the pattern, change the column
+list), tracked in KNOWN_GAPS.md rather than silently implied complete by
+the Glue database existing.

@@ -80,10 +80,12 @@ def test_ingest_succeeds_against_synthetic_fixture(tmp_path: Path) -> None:
     assert "wrote 5 frames" in _plain(result.output)
 
 
-def test_detect2d_requires_local_flag() -> None:
+def test_detect2d_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["detect2d"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_detect2d_infer_requires_images_root() -> None:
@@ -94,6 +96,16 @@ def test_detect2d_infer_requires_images_root() -> None:
 
 def test_detect2d_unknown_mode_errors() -> None:
     result = runner.invoke(app, ["detect2d", "--mode", "bogus", "--local"])
+    assert result.exit_code == 1
+    assert "unknown --mode" in _plain(result.output)
+
+
+def test_detect2d_distributed_flag_alone_satisfies_execution_mode_gate() -> None:
+    """--distributed (without --local) should get past the local-or-distributed
+    check -- using an invalid --mode here to confirm that without running a
+    full training/inference pass.
+    """
+    result = runner.invoke(app, ["detect2d", "--mode", "bogus", "--distributed"])
     assert result.exit_code == 1
     assert "unknown --mode" in _plain(result.output)
 

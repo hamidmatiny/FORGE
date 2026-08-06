@@ -26,6 +26,7 @@ detect2d = [
     "torch>=2.0",
     "torchvision>=0.15",
     "lightning>=2.0",
+    "ray>=2.9",
 ]
 detect3d = [
     "torch>=2.0",
@@ -40,7 +41,9 @@ fuse = [
     "numpy>=1.24",
     "scipy>=1.10",
 ]
-ray = []
+ray = [
+    "ray>=2.9",
+]
 viz = []
 evaluate = [
     "mlflow-skinny>=2.10",

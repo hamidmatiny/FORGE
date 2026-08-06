@@ -158,11 +158,17 @@ def detect2d_cmd(
         float, typer.Option("--score-threshold", help="Minimum score to keep (infer mode).")
     ] = 0.3,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+    distributed: Annotated[
+        bool,
+        typer.Option(
+            "--distributed", help="Run inference across local CPU cores via Ray (infer mode)."
+        ),
+    ] = False,
 ) -> None:
     """Train or run 2D object detection on camera frames (Faster R-CNN + Lightning)."""
-    if not local:
+    if not local and not distributed:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] Pass --local (single-process) or --distributed (local Ray).",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -177,6 +183,7 @@ def detect2d_cmd(
             "max_steps": max_steps,
             "score_threshold": score_threshold,
             "local": local,
+            "distributed": distributed,
         },
         log_level=settings.log_level,
     )
@@ -224,7 +231,12 @@ def detect2d_cmd(
     frames = FramesTable.read_parquet(str(frames_path))
     model, model_version = load_detector(checkpoint)
     detections = run_inference(
-        frames, images_root, model, model_version, score_threshold=score_threshold
+        frames,
+        images_root,
+        model,
+        model_version,
+        score_threshold=score_threshold,
+        distributed=distributed,
     )
     output_path = settings.data_lake_root / "detections_2d.parquet"
     Detections2DTable.write_parquet(detections, str(output_path))
