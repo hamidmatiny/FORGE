@@ -831,3 +831,53 @@ The actual 72 MiB-warning-eliminated behavior itself still needs
 re-verification on a machine where real Ray execution works (this sandbox
 still can't run it — see ADR-026) — asked for that re-check rather than
 assuming the fix's real-world effect without evidence.
+
+### Fix: `_plain()` also needed to collapse whitespace, not just strip ANSI codes
+
+**Context:** Found via real user testing — `test_track_requires_frames_lake`
+and `test_fuse_requires_frames_lake` failed with output like
+`"...frames.parquet not found. run 'forge\ningest' first."` — a literal
+newline inserted between "forge" and "ingest". This is a *different*
+mechanism from the earlier ANSI-fragmentation bug `_plain()` was built to
+fix: Rich word-wraps long lines (this one contained a long `tmp_path`) at
+whatever column its detected width dictates, and the wrap point happened
+to fall mid-phrase. Stripping ANSI escape codes alone doesn't fix this,
+since the inserted character is a real `\n`, not an escape sequence.
+Reproduced directly with a long `FORGE_DATA_LAKE_ROOT` path forcing Rich
+to wrap at a different point than the user's exact case, confirming the
+same underlying mechanism (word-wrap inserting a real newline) rather than
+guessing.
+
+**Decision:** `_plain()` now also collapses every whitespace run
+(including the wrap-inserted newline) to a single space, after stripping
+ANSI codes. One general-purpose normalization step handles both failure
+mechanisms found so far, rather than chasing the specific terminal width
+that triggers wrapping in any one environment.
+
+**Consequences:** Verified the fix directly against the reproduction case
+before trusting it, and confirmed the full `test_cli.py` suite (22 tests)
+still passes. If a future test needs an exact multi-word phrase check
+against CLI output, it should go through `_plain()` — a bare
+`result.output` check is now a known risk, noted in KNOWN_GAPS.md.
+
+### Extension: Ray wired into detect3d too, using the identical shared_args pattern
+
+**Context:** `run_distributed_map` was built as a general-purpose utility,
+but only `detect2d` used it so far — an implicit claim of reusability
+that hadn't actually been exercised a second time.
+
+**Decision:** `detect3d.infer.run_inference` gained the same
+`--distributed` flag, `_infer_one_frame` extraction, and `shared_args`
+wiring as `detect2d` — no new design needed, since the pattern (and its
+`ray.put()` fix from the previous entry) already existed and was already
+proven correct. Added a mocked-Ray test that actually *executes* the real
+per-frame inference logic through a fake remote-function stand-in (not
+just verifying call patterns like `tests/test_distributed.py`'s generic
+tests) — a stronger check that the `shared_args` wiring produces correct
+detections, not just that the right functions get called.
+
+**Consequences:** Verified the sequential path end-to-end through the
+real CLI after the refactor (8 detections from the fixture, unchanged
+from every prior phase's check). `track`/`fuse`/`label`/`evaluate`/
+`curate` still don't have a `--distributed` flag — tracked in
+KNOWN_GAPS.md, not implied done by this extension.

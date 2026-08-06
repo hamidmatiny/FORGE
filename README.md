@@ -203,19 +203,22 @@ at identical coordinates. See `PHASE_8_COMPLETION.md`.
 ## Infrastructure (Phase 9, partial — Ray + Lambda done, ECS/rest of Glue-Athena open)
 
 ```bash
-uv sync --extra detect2d --extra aws --dev
+uv sync --extra detect2d --extra detect3d --extra aws --dev
 uv run pytest tests/test_distributed.py tests/test_lambda_ingest_trigger.py -v
 
 # distributed inference (local Ray, no cluster) instead of --local
 forge detect2d --mode infer --checkpoint <ckpt> --images-root <dir> --distributed
+forge detect3d --mode infer --pointcloud-root <dir> --distributed
 ```
 
 `forge.distributed.run_distributed_map`: a Ray-backed local-multi-process
-map utility, wired into `detect2d`'s per-frame inference. `--distributed`
-runs each frame's inference across local CPU cores via Ray instead of
-sequentially — same results either way, just execution strategy. No real
-Ray cluster is provisioned (local CPU only, same cost-safety policy as
-everywhere else).
+map utility, wired into `detect2d`'s and `detect3d`'s per-frame inference.
+`--distributed` runs each frame's inference across local CPU cores via
+Ray instead of sequentially — same results either way, just execution
+strategy. Large shared objects (the model) go through `ray.put()` once
+via `shared_args`, not a closure, so Ray doesn't re-serialize them per
+call. No real Ray cluster is provisioned (local CPU only, same
+cost-safety policy as everywhere else).
 
 `infra/lambda/ingest_trigger/handler.py`: an S3-upload-triggered Lambda
 that validates uploads against the nuScenes-devkit layout and publishes

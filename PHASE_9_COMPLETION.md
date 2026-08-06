@@ -56,7 +56,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/forge                              # strict, 52 source files, 0 errors
 uv run mypy infra/lambda/ingest_trigger/handler.py  # strict, 0 errors
-uv run pytest -q                                     # 164 passed, 90.33% coverage (threshold 80%)
+uv run pytest -q                                     # 169 passed, 90.37% coverage (threshold 80%)
 ```
 
 Plus: all 6 `.tf` files (including the new `glue_athena.tf`) parsed
@@ -68,13 +68,40 @@ every prior phase's manual check). Manually ran `--distributed` through
 the real CLI too, confirming the same crash signature as the isolated
 Ray diagnostics — consistent evidence, not a code-path-specific issue.
 
+## Post-completion fixes and extensions (found via real user testing)
+
+- **Rich markup bug**: every "install the [X] extra" CLI error message
+  silently dropped the extra name (Rich interprets `[X]` as unrecognized
+  style markup). Fixed by switching to `'X'` quotes across all six
+  occurrences, verified directly against Rich's own console output.
+- **Ray re-serialization**: real multi-process Ray confirmed working on a
+  user's machine — the first real (non-mocked) confirmation — and
+  surfaced a genuine inefficiency: `detect2d`'s model was captured in a
+  Ray remote-function closure (72 MiB re-serialized per call) instead of
+  going through `ray.put()`. Fixed by adding `shared_args` to
+  `run_distributed_map`. The user's own follow-up run confirmed the 72 MiB
+  warning is gone.
+- **Test-assertion whitespace bug**: `test_track_requires_frames_lake` and
+  `test_fuse_requires_frames_lake` failed on the user's machine because
+  Rich word-wrapped a long line (containing a `tmp_path`), inserting a
+  literal newline mid-phrase (`"forge\ningest"`) — a different mechanism
+  from the earlier ANSI-fragmentation bug, needing a different fix.
+  `tests/test_cli.py`'s `_plain()` helper now also collapses whitespace
+  runs, not just strips ANSI codes.
+- **Ray extended to `detect3d`**: `forge detect3d` now also accepts
+  `--distributed`, using the identical (already-fixed) `shared_args`
+  pattern — proving `run_distributed_map` is genuinely reusable, not
+  detect2d-specific.
+
 ## What this phase does *not* claim
 
-- Ray is wired into `detect2d` only — detect3d/track/fuse/label/
+- Ray is wired into `detect2d` and `detect3d` only — track/fuse/label/
   evaluate/curate still run single-process; none of them have a
   `--distributed` flag yet.
-- Ray's actual parallel execution was never verified working in this
-  development environment — only its API usage, via mocks.
+- Ray's actual parallel execution was never verified working in *this*
+  development environment — only its API usage, via mocks. (It *has* been
+  confirmed working on a real user machine, including the `ray.put()` fix
+  above — but not here.)
 - The Glue catalog covers `pseudo_labels` only, not the other ~9 lake
   tables.
 - Nothing consumes the Lambda's SQS queue yet — that's a Ray/ECS worker's

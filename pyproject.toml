@@ -32,6 +32,7 @@ detect3d = [
     "torch>=2.0",
     "lightning>=2.0",
     "numpy>=1.24",
+    "ray>=2.9",
 ]
 track = [
     "numpy>=1.24",

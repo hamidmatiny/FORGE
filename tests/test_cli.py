@@ -12,20 +12,34 @@ from forge.cli import app
 runner = CliRunner()
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
 
 
 def _plain(text: str) -> str:
-    """Strip ANSI escape codes before substring-checking CLI output.
+    """Normalize CLI output before substring-checking it in a test.
 
-    Rich (which Typer/Click use for error rendering) can style output
-    character-by-character depending on the detected terminal width and
-    environment — in narrow/non-interactive environments this can insert
-    escape codes *within* a word, breaking a naive substring check even
-    though the visible text is unchanged. Stripping first is robust
-    regardless of the exact width/rendering behavior in any given
-    environment (see DECISIONS.md for the CI failure this was found from).
+    Two independent things Rich (used by Typer/Click for error rendering)
+    can do that break a naive substring check, even though the visible
+    text is semantically unchanged:
+
+    1. Style output character-by-character depending on the detected
+       terminal width/environment, inserting ANSI escape codes *within* a
+       word (found via a CI failure — see DECISIONS.md).
+    2. Word-wrap a long line (e.g. one containing a long tmp_path) at
+       whatever column its detected width dictates, inserting a literal
+       newline *within* a phrase like "forge ingest" (found via a
+       different real test failure — also in DECISIONS.md). Stripping
+       ANSI codes alone doesn't fix this, since the inserted character is
+       a real `\n`, not an escape sequence.
+
+    Handling both by stripping ANSI codes first, then collapsing every
+    whitespace run (including the wrap-inserted newline) to a single
+    space, is robust regardless of the exact width/rendering behavior in
+    any given environment — rather than chasing the specific width that
+    triggers wrapping in one CI runner or one developer's terminal.
     """
-    return _ANSI_ESCAPE_RE.sub("", text).lower()
+    stripped = _ANSI_ESCAPE_RE.sub("", text)
+    return _WHITESPACE_RUN_RE.sub(" ", stripped).lower()
 
 
 def test_help_lists_all_stage_commands() -> None:
@@ -110,10 +124,12 @@ def test_detect2d_distributed_flag_alone_satisfies_execution_mode_gate() -> None
     assert "unknown --mode" in _plain(result.output)
 
 
-def test_detect3d_requires_local_flag() -> None:
+def test_detect3d_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["detect3d"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_detect3d_infer_requires_pointcloud_root() -> None:
@@ -124,6 +140,12 @@ def test_detect3d_infer_requires_pointcloud_root() -> None:
 
 def test_detect3d_unknown_mode_errors() -> None:
     result = runner.invoke(app, ["detect3d", "--mode", "bogus", "--local"])
+    assert result.exit_code == 1
+    assert "unknown --mode" in _plain(result.output)
+
+
+def test_detect3d_distributed_flag_alone_satisfies_execution_mode_gate() -> None:
+    result = runner.invoke(app, ["detect3d", "--mode", "bogus", "--distributed"])
     assert result.exit_code == 1
     assert "unknown --mode" in _plain(result.output)
 

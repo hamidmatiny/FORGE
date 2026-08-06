@@ -173,3 +173,51 @@ def test_run_inference_skips_missing_pointcloud_file() -> None:
     model, version = load_detector(checkpoint=None, num_classes=3)
     detections = run_inference(frames, FIXTURE_ROOT, model, version)
     assert detections == []
+
+
+def test_run_inference_distributed_true_produces_same_results_as_sequential() -> None:
+    """distributed=True with Ray's API mocked as a pure passthrough (each call runs
+
+    for real, just not through actual Ray workers) -- confirms run_inference
+    wires the model through shared_args correctly, same real multi-process
+    Ray verification gap as forge.distributed itself (see DECISIONS.md
+    ADR-026): this proves the *wiring* is correct, not that real Ray
+    execution works in this environment.
+    """
+    from unittest.mock import patch
+
+    frames = [
+        FrameRecord(
+            frame_id="sd-1-lidar",
+            scene_id="scene-0001",
+            timestamp_us=1,
+            sensor_id="LIDAR_TOP",
+            dataset_split="mini_train",
+            data_path="samples/LIDAR_TOP/scene0001_00.pcd.bin",
+            ingested_at=datetime(2024, 1, 1, tzinfo=UTC),
+        ),
+    ]
+    model, version = load_detector(checkpoint=None, num_classes=len(CLASS_NAMES))
+
+    with patch("forge.distributed.ray_utils.ray") as mock_ray:
+        mock_ray.is_initialized.return_value = False
+        mock_ray.put.side_effect = lambda arg: arg  # passthrough, no real object store
+        mock_ray.remote.side_effect = lambda fn: _FakeRemote(fn)
+        mock_ray.get.side_effect = lambda futures: [f() for f in futures]
+
+        detections = run_inference(
+            frames, FIXTURE_ROOT, model, version, score_threshold=0.0, distributed=True
+        )
+
+    assert len(detections) == NUM_QUERIES
+    assert all(d.frame_id == "sd-1-lidar" for d in detections)
+
+
+class _FakeRemote:
+    """Stand-in for a `ray.remote`-wrapped function: `.remote(*a)` returns a thunk."""
+
+    def __init__(self, fn: object) -> None:
+        self._fn = fn
+
+    def remote(self, *args: object) -> object:
+        return lambda: self._fn(*args)  # type: ignore[operator]
