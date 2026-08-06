@@ -123,3 +123,52 @@ def test_distributed_shuts_down_ray_even_if_get_raises() -> None:
             run_distributed_map(square, [1, 2], distributed=True)
 
         mock_ray.shutdown.assert_called_once()
+
+
+# --- shared_args: large objects go through ray.put(), not the closure -----
+
+
+def test_sequential_passes_shared_args_directly() -> None:
+    """No Ray involved -- shared_args just get passed through as extra arguments."""
+
+    def add(x: int, offset: int, label: str) -> str:
+        return f"{label}:{x + offset}"
+
+    result = run_distributed_map(add, [1, 2, 3], distributed=False, shared_args=(10, "n"))
+    assert result == ["n:11", "n:12", "n:13"]
+
+
+def test_distributed_puts_each_shared_arg_exactly_once() -> None:
+    def add(x: int, offset: int) -> int:
+        return x + offset
+
+    with patch("forge.distributed.ray_utils.ray") as mock_ray:
+        mock_ray.is_initialized.return_value = False
+        mock_ray.put.side_effect = lambda arg: f"ref-{arg}"
+        mock_remote_fn = MagicMock()
+        mock_ray.remote.return_value = mock_remote_fn
+        mock_ray.get.return_value = [11, 12, 13]
+
+        run_distributed_map(add, [1, 2, 3], distributed=True, shared_args=(10,))
+
+        # put() called once for the shared arg, not once per item.
+        mock_ray.put.assert_called_once_with(10)
+        # Every item call gets the SAME put()-returned ref, not the raw value.
+        mock_remote_fn.remote.assert_any_call(1, "ref-10")
+        mock_remote_fn.remote.assert_any_call(2, "ref-10")
+        mock_remote_fn.remote.assert_any_call(3, "ref-10")
+
+
+def test_distributed_with_no_shared_args_never_calls_put() -> None:
+    def square(x: int) -> int:
+        return x * x
+
+    with patch("forge.distributed.ray_utils.ray") as mock_ray:
+        mock_ray.is_initialized.return_value = False
+        mock_remote_fn = MagicMock()
+        mock_ray.remote.return_value = mock_remote_fn
+        mock_ray.get.return_value = [1, 4]
+
+        run_distributed_map(square, [1, 2], distributed=True)
+
+        mock_ray.put.assert_not_called()

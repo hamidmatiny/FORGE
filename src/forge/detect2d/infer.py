@@ -43,8 +43,8 @@ def load_detector(
 
 def _infer_one_frame(
     frame: FrameRecord,
-    images_root: Path,
     model: FasterRCNN,
+    images_root: Path,
     model_version: str,
     score_threshold: float,
     image_size: int,
@@ -107,16 +107,20 @@ def run_inference(
         distributed: If True, runs each frame's inference via local Ray
             (see ``forge.distributed.run_distributed_map``) instead of a
             plain sequential loop. Same results either way — this only
-            changes execution strategy, not what gets detected.
+            changes execution strategy, not what gets detected. The model
+            is passed via ``shared_args`` rather than a closure variable,
+            so Ray ``ray.put()``s it into the object store once instead
+            of re-serializing it into the remote function definition.
     """
     camera_frames = [f for f in frames if f.sensor_id.startswith("CAM")]
 
     per_frame_results = run_distributed_map(
-        lambda frame: _infer_one_frame(
-            frame, images_root, model, model_version, score_threshold, image_size
+        lambda frame, model: _infer_one_frame(
+            frame, model, images_root, model_version, score_threshold, image_size
         ),
         camera_frames,
         distributed=distributed,
+        shared_args=(model,),
     )
 
     detections: list[Detection2DRecord] = []

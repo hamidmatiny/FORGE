@@ -774,3 +774,60 @@ other ~9 tables are documented as the same mechanical pattern, not built.
 low-risk, repetitive follow-up work (copy the pattern, change the column
 list), tracked in KNOWN_GAPS.md rather than silently implied complete by
 the Glue database existing.
+
+### Fix: Rich markup swallowed `[extra-name]` in every "install the extra" error message
+
+**Context:** Found via real user testing — `forge track`'s error message
+rendered as `"requires the  extra (numpy, scipy)"` (double space, no
+extra name) instead of `"requires the [track] extra"`. Reproduced
+directly: `Console().print("... the [track] extra ...")` silently drops
+`[track]` — Rich's console treats `[...]` as BBCode-style markup syntax
+by default, and an unrecognized tag like `[track]` gets consumed as an
+(invalid) style span rather than printed literally. This affected every
+one of the six "install the X extra" error messages across
+detect2d/detect3d/track/fuse/evaluate/curate — a real, user-facing defect
+independent of which extras happen to be installed when it's hit.
+
+**Decision:** Replaced `the [X] extra` with `the 'X' extra` (quotes
+instead of brackets) in all six messages. Simpler than escaping brackets
+or passing `markup=False` per-call, and avoids the whole class of
+collision permanently since quotes have no special meaning to Rich.
+
+**Consequences:** Verified directly against Rich's own console (not just
+reasoning about it) that the fixed message renders correctly, and
+confirmed no other `console.print` call in `cli.py` has an unescaped
+`[word]` pattern that could hit the same issue.
+
+### Fix: Ray re-serializing the whole detect2d model into the remote function definition
+
+**Context:** Found via real user testing on their machine (the first
+place actual multi-process Ray execution was confirmed working — see
+ADR-026) — a raylet warning: `"the remote function
+forge.detect2d.infer.<lambda> is very large (72 MiB)... use ray.put() to
+put large objects in the Ray object store."` The original
+`run_distributed_map` only took a single-argument `fn`; `detect2d`'s call
+site captured the PyTorch model as a closure variable inside a lambda,
+which Ray pickles into the remote function definition itself when
+`ray.remote(fn)` registers it — exactly the anti-pattern Ray's own
+warning flags.
+
+**Decision:** Extended `run_distributed_map` with a `shared_args: tuple`
+parameter: when `distributed=True`, each shared arg is `ray.put()` into
+the object store *once* and passed to every per-item call as the
+resulting `ObjectRef` (which Ray auto-resolves for the worker) instead of
+living in `fn`'s closure. `detect2d.infer.run_inference` now passes the
+model via `shared_args=(model,)` rather than closing over it. Small
+values (paths, thresholds) are still fine as ordinary closure variables —
+only the large model needed this treatment.
+
+**Consequences:** Verified with dedicated tests
+(`test_distributed_puts_each_shared_arg_exactly_once`,
+`test_distributed_with_no_shared_args_never_calls_put`) that `ray.put()`
+is called exactly once per shared argument (not once per item) and that
+callers with no shared args never touch `ray.put()` at all. Confirmed the
+sequential (`distributed=False`) path still works end-to-end through the
+real CLI after the refactor (300 detections from the fixture, unchanged).
+The actual 72 MiB-warning-eliminated behavior itself still needs
+re-verification on a machine where real Ray execution works (this sandbox
+still can't run it — see ADR-026) — asked for that re-check rather than
+assuming the fix's real-world effect without evidence.

@@ -202,7 +202,7 @@ def detect2d_cmd(
         from forge.detect2d import load_detector, run_inference, train_detector
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge detect2d requires the [detect2d] extra "
+            "[red]Error:[/red] forge detect2d requires the 'detect2d' extra "
             "(torch, torchvision, lightning). Install with: uv sync --extra detect2d",
             highlight=False,
         )
@@ -310,7 +310,7 @@ def detect3d_cmd(
         from forge.detect3d import load_detector, run_inference, train_detector
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge detect3d requires the [detect3d] extra "
+            "[red]Error:[/red] forge detect3d requires the 'detect3d' extra "
             "(torch, lightning, numpy). Install with: uv sync --extra detect3d",
             highlight=False,
         )
@@ -380,7 +380,7 @@ def track(
         from forge.track import run_tracking
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge track requires the [track] extra (numpy, scipy). "
+            "[red]Error:[/red] forge track requires the 'track' extra (numpy, scipy). "
             "Install with: uv sync --extra track",
             highlight=False,
         )
@@ -446,7 +446,7 @@ def fuse(
         from forge.fuse import run_fusion
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge fuse requires the [fuse] extra (numpy, scipy). "
+            "[red]Error:[/red] forge fuse requires the 'fuse' extra (numpy, scipy). "
             "Install with: uv sync --extra fuse",
             highlight=False,
         )
@@ -651,7 +651,7 @@ def evaluate(
         from forge.evaluate import ingest_ground_truth, log_to_mlflow, log_to_wandb, run_evaluation
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge evaluate requires the [evaluate] extra "
+            "[red]Error:[/red] forge evaluate requires the 'evaluate' extra "
             "(mlflow-skinny, wandb). Install with: uv sync --extra evaluate",
             highlight=False,
         )
@@ -744,7 +744,7 @@ def curate(
         from forge.curate import run_curation
     except ImportError as exc:
         console.print(
-            "[red]Error:[/red] forge curate requires the [curate] extra (lancedb). "
+            "[red]Error:[/red] forge curate requires the 'curate' extra (lancedb). "
             "Install with: uv sync --extra curate",
             highlight=False,
         )
