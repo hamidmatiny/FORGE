@@ -75,6 +75,11 @@ dev = [
 [project.scripts]
 forge = "forge.cli:app"
 
+[project.urls]
+Repository = "https://github.com/hamidmatiny/FORGE"
+Issues = "https://github.com/hamidmatiny/FORGE/issues"
+Changelog = "https://github.com/hamidmatiny/FORGE/releases"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/forge"]
 
