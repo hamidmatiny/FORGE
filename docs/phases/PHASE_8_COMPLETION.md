@@ -91,5 +91,5 @@ required that workaround.
 
 ## Known gaps carried forward
 
-See `KNOWN_GAPS.md` for the full list and `ARCHITECTURE.md` for how this
+See [KNOWN_GAPS.md](../../KNOWN_GAPS.md) for the full list and [ARCHITECTURE.md](../ARCHITECTURE.md) for how this
 phase maps back to the platform's requirement-coverage table.

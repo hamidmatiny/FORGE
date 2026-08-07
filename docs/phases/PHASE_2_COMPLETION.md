@@ -71,5 +71,5 @@ machine with typical disk space and PyPI access.
 - No batched inference (one image at a time) — fine at current scale.
 - Non-camera sensors are silently skipped by design (lidar/radar is Phase 3).
 
-See `KNOWN_GAPS.md` for the full list and `ARCHITECTURE.md` for how this
+See [KNOWN_GAPS.md](../../KNOWN_GAPS.md) for the full list and [ARCHITECTURE.md](../ARCHITECTURE.md) for how this
 phase maps back to the platform's requirement-coverage table.

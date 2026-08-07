@@ -1,5 +1,7 @@
 # FORGE Documentation
 
+- [Architecture + requirement coverage map](ARCHITECTURE.md)
+- [Phase completion docs](phases/) (Phase 0 → 11, one file per phase)
 - [CLI reference](cli.md)
 - [Settings](settings.md)
 - [Logging](logging.md)

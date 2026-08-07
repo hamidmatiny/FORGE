@@ -50,5 +50,5 @@ dvc dag                         # validates dvc.yaml
 - No real nuScenes-mini run has been executed anywhere in this repo's
   history — by design, per the dataset's non-commercial license.
 
-See `KNOWN_GAPS.md` for the full list and `ARCHITECTURE.md` for how this
+See [KNOWN_GAPS.md](../../KNOWN_GAPS.md) for the full list and [ARCHITECTURE.md](../ARCHITECTURE.md) for how this
 phase maps back to the platform's requirement-coverage table.

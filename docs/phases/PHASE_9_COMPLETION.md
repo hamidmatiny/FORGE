@@ -1,15 +1,19 @@
-# Phase 9 Completion — Infrastructure (partial: Ray, Lambda, Glue/Athena, EventBridge, Step Functions, ECS)
+# Phase 9 Completion — Infrastructure (Ray, Lambda, Glue/Athena, EventBridge, Step Functions, ECS, DynamoDB)
 
 ## Scope
 
 Phase 9 is infrastructure, not a `forge` CLI command: Ray distributed
-execution mode, and Terraform-provisioned AWS (S3 lake + Glue/Athena
-catalog + Lambda + EventBridge + Step Functions + ECS, added across three
-rounds — part of the same cloud-infrastructure requirement bucket as
-S3/Athena in `ARCHITECTURE.md`'s requirement coverage map). **This is
-still a partial phase completion** — labeled 🟡 in `README.md`'s phase
-table, not ✅. What's built and what's still open are both listed
-explicitly below.
+execution mode, and Terraform-provisioned AWS (S3 lake + full 11-table
+Glue/Athena catalog + Lambda + EventBridge + Step Functions + ECS +
+DynamoDB, built across four rounds — part of the same cloud-infrastructure
+requirement bucket as S3/Athena in [ARCHITECTURE.md](../ARCHITECTURE.md)'s
+requirement coverage map). **Marked done** — every substantive piece of
+the plan is built and verified; what remains is either a permanent,
+documented design decision (Ray excluded from `curate`, see ADR-037) or a
+consequence of this repo's project-wide cost-safety policy (never
+`terraform apply`, same as every phase since Phase 0 — not a Phase-9-
+specific shortfall). Listed explicitly below, same honesty bar as every
+other phase's documented, accepted limitations.
 
 ## What was built
 
@@ -186,5 +190,5 @@ distinguishing the two service names.
 
 ## Known gaps carried forward
 
-See `KNOWN_GAPS.md` for the full list and `ARCHITECTURE.md` for how this
+See [KNOWN_GAPS.md](../../KNOWN_GAPS.md) for the full list and [ARCHITECTURE.md](../ARCHITECTURE.md) for how this
 phase maps back to the platform's requirement-coverage table.

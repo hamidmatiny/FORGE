@@ -60,5 +60,5 @@ directly, not from memory).
 
 ## Known gaps carried forward
 
-See `KNOWN_GAPS.md` (Phase 10 section) and `ARCHITECTURE.md` for requirement
+See [KNOWN_GAPS.md](../../KNOWN_GAPS.md) (Phase 10 section) and [ARCHITECTURE.md](../ARCHITECTURE.md) for requirement
 coverage. Phase 11 (productionization docs) remains open.

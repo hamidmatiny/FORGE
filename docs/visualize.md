@@ -23,4 +23,4 @@ forge visualize --local --format rerun
 - `src/forge/visualize/rerun_export.py`
 - `src/forge/visualize/mcap_export.py`
 
-See [PHASE_10_COMPLETION.md](../PHASE_10_COMPLETION.md).
+See [PHASE_10_COMPLETION.md](phases/PHASE_10_COMPLETION.md).

@@ -88,7 +88,7 @@ Real nuScenes-mini: [docs/runbooks/ingest-real-nuscenes.md](docs/runbooks/ingest
 - The demo runs only **5** detect2d training steps as a loop smoke test.
 - Score thresholds and fusion IoU still apply; empty downstream tables can be valid.
 
-See [PHASE_2_COMPLETION.md](PHASE_2_COMPLETION.md), [PHASE_3_COMPLETION.md](PHASE_3_COMPLETION.md),
+See [PHASE_2_COMPLETION.md](docs/phases/PHASE_2_COMPLETION.md), [PHASE_3_COMPLETION.md](docs/phases/PHASE_3_COMPLETION.md),
 and [KNOWN_GAPS.md](KNOWN_GAPS.md) (detect2d/detect3d model accuracy rows).
 
 ## Troubleshooting (issues actually hit in this repo)

@@ -103,7 +103,7 @@ appears once its phase is built and tested.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | Done |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Done |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | Done |
-| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS/DynamoDB (no CLI verb) | Partial — Ray (local, 6/7 stages, `curate` deliberately excluded) + Lambda + EventBridge + Step Functions (retried) + ECS + DynamoDB completeness tracking + full 11-table Glue/Athena; real deployment still open |
+| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS/DynamoDB (no CLI verb) | Done — Ray (local, 6/7 stages; `curate` permanently excluded by design, see ADR-037) + Lambda + EventBridge + Step Functions (retried) + ECS + DynamoDB completeness tracking + full 11-table Glue/Athena. Never `apply`'d to real AWS, by the same project-wide cost-safety policy every phase follows since Phase 0 — not a Phase-9-specific shortfall. |
 | 10 | `forge visualize` — rerun.io RRD + MCAP JSON export | Done (FiftyOne deferred) |
 | 11 | Productionization — runbook, demo script | Done |
 

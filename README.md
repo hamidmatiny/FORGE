@@ -2,9 +2,49 @@
 
 **Fleet Offline Recognition & Ground-truth Engine** — a production-grade offline perception auto-labeling platform for autonomous-vehicle sensor data.
 
-FORGE ingests logged camera, lidar, and radar data and produces high-quality annotations (2D/3D boxes, classes, tracks, segmentation) for model training and simulation. It runs **offline**, so it can use future frames, heavy models, and multi-pass refinement. Quality over latency, always.
+FORGE ingests logged camera and lidar sensor data (radar is a documented, not-yet-built gap — see [KNOWN_GAPS.md](KNOWN_GAPS.md)) and produces high-quality annotations (2D/3D boxes, classes, tracks) for model training and simulation. It runs **offline**, so it can use future frames, heavy models, and multi-pass refinement. Quality over latency, always.
 
 > **Research / portfolio system.** FORGE is not a commercial product.
+
+## Architecture at a glance
+
+```mermaid
+flowchart TD
+    subgraph PIPE["forge CLI — local pipeline (data lake: versioned Parquet)"]
+        direction TB
+        RAW[/"raw nuScenes-devkit data"/] --> ING["ingest"]
+        ING --> D2["detect2d\n(Faster R-CNN)"]
+        ING --> D3["detect3d\n(PointNet-style)"]
+        D2 --> TRK["track\n(SORT: Kalman + Hungarian IoU)"]
+        D2 --> FUS["fuse\n(calibrated projection + IoU)"]
+        D3 --> FUS
+        FUS --> LAB["label\n(trust scoring, active learning)"]
+        GT[/"nuScenes GT\n(eval-only, never a pipeline input)"/] -.-> EVAL
+        LAB --> EVAL["evaluate\n(BEV distance, mAP)"]
+        LAB --> CUR["curate\n(LanceDB dedup)"]
+        LAB --> VIZ["visualize\n(rerun RRD / Foxglove MCAP)"]
+        EVAL --> MLF[("MLflow + W&B\n(local / offline)")]
+        CUR --> LDB[("LanceDB")]
+    end
+
+    subgraph CLOUD["Cloud infrastructure (Terraform — structurally verified, never `apply`'d)"]
+        direction TB
+        S3RAW[("S3: raw-data bucket")] --> LAM["Lambda\n(validates upload layout)"]
+        LAM --> SQS[("SQS\nevery valid upload")]
+        LAM --> DDB[("DynamoDB\ncompleteness tracking")]
+        DDB -- "dataset complete" --> EB["EventBridge"]
+        EB --> SFN["Step Functions\n(chains all 8 stages, retried)"]
+        SFN --> ECS["ECS Fargate\n(runs each forge CLI stage)"]
+        ECS --> S3OUT[("S3: processed lake")]
+        S3OUT --> GLUE["Glue catalog\n(11 tables)"]
+        GLUE --> ATH["Athena queries"]
+    end
+
+    RAW -.->|"uploaded to"| S3RAW
+    ECS -.->|"runs"| PIPE
+```
+
+Left column: what would trigger and orchestrate the pipeline in a real cloud deployment (built and verified as code, never deployed against real AWS — see [KNOWN_GAPS.md](KNOWN_GAPS.md)). Right column: the actual `forge` CLI pipeline, runnable end-to-end locally right now via `./scripts/demo.sh`.
 
 ## Dataset Notice
 
@@ -47,7 +87,7 @@ uv run python scripts/make_fixture.py
 
 ## Phase Checklist
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full pipeline diagram and a line-by-line
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full pipeline diagram and a line-by-line
 mapping of each phase to the requirement it's built to satisfy.
 
 | Phase | Scope | Status |
@@ -61,7 +101,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
-| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS/DynamoDB | 🟡 Ray (6/7 stages) + Lambda + EventBridge + Step Functions + ECS + DynamoDB + full Glue/Athena done |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS/DynamoDB | ✅ |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ✅ |
 | 11 | Productionization — runbook, demo script | ✅ |
 
@@ -211,7 +251,7 @@ near-duplicate is flagged with `duplicate_of_id` rather than dropped, so
 the decision stays auditable. Never dedups across scenes or classes, even
 at identical coordinates. See `PHASE_8_COMPLETION.md`.
 
-## Infrastructure (Phase 9, partial — Ray + Lambda + EventBridge + Step Functions + ECS + DynamoDB + full Glue/Athena done, real deployment still open)
+## Infrastructure (Phase 9)
 
 ```bash
 uv sync --extra detect2d --extra detect3d --extra aws --dev
@@ -311,19 +351,19 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 
 ## Docs
 
-- [Architecture + requirement coverage map](ARCHITECTURE.md)
-- [Phase 1 completion](PHASE_1_COMPLETION.md)
-- [Phase 2 completion](PHASE_2_COMPLETION.md)
-- [Phase 3 completion](PHASE_3_COMPLETION.md)
-- [Phase 4 completion](PHASE_4_COMPLETION.md)
-- [Phase 5 completion](PHASE_5_COMPLETION.md)
-- [Phase 6 completion](PHASE_6_COMPLETION.md)
-- [Phase 7 completion](PHASE_7_COMPLETION.md)
-- [Phase 8 completion](PHASE_8_COMPLETION.md)
+- [Architecture + requirement coverage map](docs/ARCHITECTURE.md)
+- [Phase 1 completion](docs/phases/PHASE_1_COMPLETION.md)
+- [Phase 2 completion](docs/phases/PHASE_2_COMPLETION.md)
+- [Phase 3 completion](docs/phases/PHASE_3_COMPLETION.md)
+- [Phase 4 completion](docs/phases/PHASE_4_COMPLETION.md)
+- [Phase 5 completion](docs/phases/PHASE_5_COMPLETION.md)
+- [Phase 6 completion](docs/phases/PHASE_6_COMPLETION.md)
+- [Phase 7 completion](docs/phases/PHASE_7_COMPLETION.md)
+- [Phase 8 completion](docs/phases/PHASE_8_COMPLETION.md)
 - [Runbook](RUNBOOK.md)
-- [Phase 10 completion](PHASE_10_COMPLETION.md)
-- [Phase 11 completion](PHASE_11_COMPLETION.md)
-- [Phase 9 completion](PHASE_9_COMPLETION.md)
+- [Phase 10 completion](docs/phases/PHASE_10_COMPLETION.md)
+- [Phase 11 completion](docs/phases/PHASE_11_COMPLETION.md)
+- [Phase 9 completion](docs/phases/PHASE_9_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)
 - [Architecture decisions](DECISIONS.md)
