@@ -1,6 +1,7 @@
 # Known Gaps
 
-Tracked limitations and deferred work. Every unimplemented CLI command references this file.
+Tracked limitations and deferred work — not a list of missing CLI commands (all
+`forge` stages through Phase 10 are implemented).
 
 ## Phase 0 (Foundation)
 
@@ -14,14 +15,14 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge label` | Phase 6 | ✅ Done — trust scoring + entropy-based review priority; see PHASE_6_COMPLETION.md |
 | `forge evaluate` | Phase 7 | ✅ Done — BEV distance matching, precision/recall/mAP, MLflow+W&B; see PHASE_7_COMPLETION.md |
 | `forge curate` | Phase 8 | ✅ Done — LanceDB near-duplicate search over a geometric feature vector; see PHASE_8_COMPLETION.md |
-| Ray distributed execution | Phase 9 | `--local` flag reserved on all commands; Ray backend lands with cost-safety ADR (no real cluster in CI) |
+| Ray distributed execution | Phase 9 | Partial — `forge detect2d` and `forge detect3d` support `--distributed` (local Ray); track/fuse/label/evaluate/curate/visualize are `--local` only; no Ray cluster provisioning |
 | Terraform AWS lake (S3/Glue/Athena) | Phase 9 | Applied out-of-band only, same policy as Vulcan/PRISM/hydra-data-factory |
 | `forge visualize` | Phase 10 | ✅ Done — rerun `.rrd` + MCAP JSON export; see PHASE_10_COMPLETION.md |
-| Productionization docs/runbook | Phase 11 | Not started |
-| MLflow / W&B wiring | Phase 7 | Settings stub exists; no tracking yet |
+| Productionization docs/runbook | Phase 11 | ✅ Done — `RUNBOOK.md`, `scripts/demo.sh`; see PHASE_11_COMPLETION.md |
+| MLflow / W&B | Phase 7 | ✅ Wired in `forge evaluate` (local SQLite MLflow + W&B offline mode); no remote registry or cloud tracking |
 | Hydra pipeline configs | Phase 1 | ✅ Done — Compose API loader in `forge/config.py`, `conf/ingest.yaml` |
 | DVC dataset versioning | Phase 1 | ✅ Scaffolded — `dvc.yaml` ingest stage, local relative-path remote; no real data tracked yet (needs a real nuScenes-mini run, see `docs/runbooks/ingest-real-nuscenes.md`) |
-| LanceDB vector index | Phase 8 | Not configured |
+| LanceDB in curate | Phase 8 | ✅ LanceDB stores the geometric dedup index locally under `<lake>/lancedb/`; not a hosted vector-DB service or cloud ANN deployment |
 | Non-keyframe sweep ingestion | Phase 1+ | `--all-sweeps` flag exists and is tested, but downstream phases (2+) assume key-frames only until noted otherwise |
 | Incremental/append ingest | Phase 1+ | Current `forge ingest` overwrites the lake tables on every run; append/merge semantics deferred |
 | Real nuScenes-mini run | Manual | Never executed in CI (non-commercial license, ~4 GB); `tests/fixtures/nuscenes_mini_synthetic/` mirrors the real JSON layout for all automated tests |

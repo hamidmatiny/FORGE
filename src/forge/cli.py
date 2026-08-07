@@ -767,7 +767,10 @@ def visualize(
         Path | None,
         typer.Option(
             "--output",
-            help="Output file path (.rrd for rerun, .mcap for mcap). Default under data/lake.",
+            help=(
+                "Output file path (.rrd for rerun, .mcap for mcap). "
+                "Default: <lake>/visualize_export.<ext>."
+            ),
         ),
     ] = None,
     export_format: Annotated[

@@ -947,3 +947,33 @@ installed 0.35.0 API (`help(rerun.RecordingStream.flush)`), not docs alone.
 **Consequences:** `test_rerun_export_file_verifies_with_rerun_cli` passes
 without relying on process exit to finalize the file. MCAP path separately
 required `Writer.start()` before messages (mcap 1.4.0).
+
+## Phase 11 — Productionization (2026-08-07)
+
+### ADR-032: Shell demo script instead of a `forge demo` subcommand
+
+**Context:** Phase 11 needs a one-command end-to-end walkthrough. The pipeline
+already exposes every stage as a separate `forge` CLI command with its own
+extras, configs, and failure modes.
+
+**Decision:** Add `scripts/demo.sh` — a `set -e` bash orchestrator that calls
+existing commands in order on the synthetic fixture. No new Python package logic,
+no hidden defaults beyond what each stage already documents.
+
+**Consequences:** Demo behavior stays honest (each step prints the same `OK
+wrote N ...` lines as manual runs). Updating the pipeline means editing the
+script, not a monolithic CLI verb.
+
+### ADR-033: Final doc consistency pass as a first-class deliverable
+
+**Context:** This repo has repeatedly found doc drift after later phases landed
+(radar fusion and pandas/daft overclaims in ARCHITECTURE.md; KNOWN_GAPS.md still
+listing MLflow/LanceDB as "not configured" after Phases 7–8; ARCHITECTURE.md's
+build-order table still saying Phases 1–8 "Not started").
+
+**Decision:** Phase 11 includes a cross-doc audit (README vs ARCHITECTURE vs
+code vs KNOWN_GAPS) and fixes verified by grep/import checks, documented in the
+commit message the same way prior doc-only corrections were — not silent edits.
+
+**Consequences:** `RUNBOOK.md` becomes the operational index; completion-doc
+pytest counts are explicitly noted as point-in-time snapshots in the runbook.

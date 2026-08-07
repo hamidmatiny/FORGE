@@ -63,7 +63,16 @@ mapping of each phase to the requirement it's built to satisfy.
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
 | 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Ray (local) + Lambda done |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ✅ |
-| 11 | Productionization — runbook, demo script | ⬜ |
+| 11 | Productionization — runbook, demo script | ✅ |
+
+## Demo (full synthetic pipeline)
+
+```bash
+uv sync --all-extras --dev
+./scripts/demo.sh
+```
+
+See [RUNBOOK.md](RUNBOOK.md) for setup, per-stage commands, and troubleshooting.
 
 ## CLI
 
@@ -81,7 +90,7 @@ forge curate       # Phase 8
 forge visualize    # Phase 10
 ```
 
-Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md). (Phase 11 productionization docs are the remaining open item in the checklist above.)
+Unimplemented pipeline stages: none through Phase 10. Phase 11 adds operational docs only.
 
 ## Detection
 
@@ -235,8 +244,8 @@ matching every sibling repo's cost-safety policy. See
 
 ```bash
 uv sync --extra visualize --dev
-forge visualize --local --format rerun --output data/lake/review.rrd
-forge visualize --local --format mcap --output data/lake/review.mcap --decision-filter auto_accept
+forge visualize --local --format rerun   # default: <lake>/visualize_export.rrd
+forge visualize --local --format mcap --decision-filter auto_accept  # default: visualize_export.mcap
 ```
 
 Exports `pseudo_labels.parquet` to an offline review file — rerun `.rrd` (3D
@@ -269,7 +278,7 @@ Environment variables use the `FORGE_` prefix:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FORGE_DATA_LAKE_ROOT` | `data/lake` | Parquet data lake root |
-| `FORGE_MLFLOW_URI` | `file:./mlruns` | MLflow tracking URI (Phase 2+) |
+| `FORGE_MLFLOW_URI` | `file:./mlruns` | MLflow tracking URI (`forge evaluate`) |
 | `FORGE_LOG_LEVEL` | `INFO` | Log level |
 
 ## Docker
@@ -295,7 +304,9 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 6 completion](PHASE_6_COMPLETION.md)
 - [Phase 7 completion](PHASE_7_COMPLETION.md)
 - [Phase 8 completion](PHASE_8_COMPLETION.md)
+- [Runbook](RUNBOOK.md)
 - [Phase 10 completion](PHASE_10_COMPLETION.md)
+- [Phase 11 completion](PHASE_11_COMPLETION.md)
 - [Phase 9 completion](PHASE_9_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)

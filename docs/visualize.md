@@ -9,11 +9,13 @@ Phase 10: offline export of `pseudo_labels.parquet` for human review.
 | `rerun` | `.rrd` | 3D boxes; skips `camera_only` sentinel geometry |
 | `mcap` | `.mcap` | JSON messages on `/forge/pseudo_labels`; all rows |
 
+Default output (no `--output`): `<lake>/visualize_export.rrd` or `visualize_export.mcap`.
+
 ## CLI
 
 ```bash
 uv sync --extra visualize --dev
-forge visualize --local --format rerun --output review.rrd
+forge visualize --local --format rerun
 ```
 
 ## Implementation

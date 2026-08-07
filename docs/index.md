@@ -3,6 +3,7 @@
 - [CLI reference](cli.md)
 - [Settings](settings.md)
 - [Logging](logging.md)
+- [Runbook](../RUNBOOK.md)
 - [Visualization export](visualize.md)
 - [Schema reference & versioning policy](schemas.md)
 

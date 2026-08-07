@@ -92,17 +92,17 @@ appears once its phase is built and tested.
 | Phase | Component | Status |
 |---|---|---|
 | 0 | Foundation — package, `BaseTable` schema pattern, CI, Docker | Done |
-| 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC versioning, Hydra configs | Not started |
-| 2 | `forge detect2d` — camera 2D detection, Lightning training loop | Not started |
-| 3 | `forge detect3d` — lidar 3D detection / BEV | Not started |
-| 4 | `forge track` — multi-object tracking | Not started |
-| 5 | `forge fuse` — multi-sensor fusion | Not started |
-| 6 | `forge label` — active learning + pseudo-labeling, review queue | Not started |
-| 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Not started |
-| 8 | `forge curate` — LanceDB dedup/search, dataset export | Not started |
-| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda (no CLI verb) | Ray (local, wired into detect2d + detect3d) + Lambda done; Glue/Athena has one representative table; ECS worker, Ray for track/fuse/label/evaluate/curate still open |
+| 1 | `forge ingest` — nuScenes-mini → Parquet lake, DVC versioning, Hydra configs | Done |
+| 2 | `forge detect2d` — camera 2D detection, Lightning training loop | Done |
+| 3 | `forge detect3d` — lidar 3D detection / BEV | Done |
+| 4 | `forge track` — multi-object tracking | Done |
+| 5 | `forge fuse` — multi-sensor fusion | Done |
+| 6 | `forge label` — active learning + pseudo-labeling, review queue | Done |
+| 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Done |
+| 8 | `forge curate` — LanceDB dedup/search, dataset export | Done |
+| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda (no CLI verb) | Partial — Ray (local, detect2d + detect3d) + Lambda + one-table Glue/Athena; ECS worker, remaining Glue tables, Ray on other stages still open |
 | 10 | `forge visualize` — rerun.io RRD + MCAP JSON export | Done (FiftyOne deferred) |
-| 11 | Productionization — runbook, demo script, engineering-bar docs | Not started |
+| 11 | Productionization — runbook, demo script | Done |
 
 See `docs/schemas.md` for the current Parquet table contracts and `KNOWN_GAPS.md` for
 what's explicitly deferred at each stage.
