@@ -136,8 +136,13 @@ distinguishing the two service names.
   development environment — only its API usage, via mocks. (It *has* been
   confirmed working on a real user machine, including the `ray.put()` fix
   above — but not here.)
-- The Glue catalog covers `pseudo_labels` only, not the other ~9 lake
-  tables.
+- All 11 lake tables now have real Glue table definitions (up from 1),
+  cross-checked programmatically against their real PyArrow schemas — but
+  no schema-drift protection exists beyond that one-time check; a future
+  schema change wouldn't automatically flag a now-stale Glue column list
+  (`scripts/validate_glue_schemas.py`, run via `scripts/check.sh`, would
+  catch it on the next full check run, not automatically on the schema
+  change itself).
 - Step Functions starts a pipeline run on *every* validated upload, not
   once a whole dataset has finished landing — no completeness-tracking
   design was built this round (a real design decision, not an oversight

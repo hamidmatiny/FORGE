@@ -50,5 +50,8 @@ PYEOF
 echo "==> Step Functions state machine structural validation"
 python3 scripts/validate_state_machine.py
 
+echo "==> Glue catalog columns match real PyArrow schemas"
+uv run python3 scripts/validate_glue_schemas.py
+
 echo
 echo "All checks passed."

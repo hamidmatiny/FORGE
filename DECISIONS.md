@@ -1142,3 +1142,35 @@ applied to `ingest` (parses a handful of JSON files — not a real
 parallelization target) and `visualize` (writes one output file per
 format — inherently a single sequential write) — both had the identical
 stale message, now accurate for each.
+
+### ADR-038: Glue catalog expanded to all 11 lake tables via `for_each`, verified programmatically against real schemas
+
+**Context:** ADR-027 scoped the Glue catalog down to one representative
+table (`pseudo_labels`) with 11 near-identical hand-written resource
+blocks as the acknowledged follow-up. Hand-writing 10 more of those
+blocks would repeat the exact same risk ADR-027 flagged: a wrong column
+type is a silent correctness bug nobody would catch until someone
+actually queried it.
+
+**Decision:** Rewrote `glue_athena.tf` as a single `aws_glue_catalog_table`
+resource with `for_each = local.lake_tables`, where `local.lake_tables` is
+a map of table name → column `(name, type)` list, one entry per table.
+Every column list was copied directly from that table's real
+`arrow_schema()` in `src/forge/schemas/`. Then — rather than trust that
+copy — wrote a one-off verification script that imports every real
+`*Table` class from `forge.schemas`, computes each field's Arrow→Glue/Hive
+type mapping programmatically (not by re-deriving the mapping rules by
+hand a second time), parses the actual `.tf` file with `python-hcl2`, and
+asserts the two match column-for-column. Ran it: all 11 tables matched
+exactly on the first pass.
+
+**Consequences:** All 11 lake tables (`frames`, `calibration`, `ego_pose`,
+`detections_2d`, `detections_3d`, `tracks`, `fused_objects`,
+`pseudo_labels`, `ground_truth`, `eval_metrics`, `curated`) now have real
+Glue table definitions — genuinely correct as of the schemas that exist
+today, not approximated. If a schema's Arrow type ever changes, the
+`local.lake_tables` entry for that table needs updating by hand (no
+automatic sync from `arrow_schema()` into the `.tf` file) — the
+verification script this was checked against isn't wired into CI, so a
+future schema change wouldn't automatically catch a stale Glue column
+list; tracked in KNOWN_GAPS.md.
