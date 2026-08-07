@@ -35,7 +35,8 @@ nuScenes-mini (eval GT, never a pipeline input)
 
 Cross-cutting (Phase 9, no dedicated CLI verb):
   - Ray: local-multi-process distributed execution via `forge.distributed.run_distributed_map`,
-    wired into detect2d and detect3d's per-frame inference via a `--distributed` flag (`--local` still works
+    wired into detect2d, detect3d, track, fuse, label, and evaluate's core loops via a
+    `--distributed` flag (`--local` still works
     the same as before). Real Ray-cluster provisioning isn't built — this is local-CPU-core
     parallelism only, the same "no real cloud/GPU spend" policy as everywhere else.
   - Terraform: S3 raw-data + processed-lake buckets, Glue catalog database (one full table
@@ -80,7 +81,7 @@ appears once its phase is built and tested.
 | Semantic segmentation / BEV | **3 — detect3d** | BEV representation as part of the 3D head |
 | Scaled MLOps: ML frameworks, experiment tracking, model registry (MLflow, W&B) | **7 — evaluate** | Run params/metrics logged to MLflow (self-hosted) and W&B (offline mode) |
 | ML metrics & evaluation quality | **7 — evaluate** | Auto-label vs. nuScenes-GT scoring and quality tracking |
-| Distributed ML (PyTorch, Lightning, Ray) | **2–8 (training), 9 (Ray)** | PyTorch Lightning for detector training; Ray as the distributed execution backend (local multi-process, wired into detect2d's and detect3d's `--distributed` inference paths) |
+| Distributed ML (PyTorch, Lightning, Ray) | **2–8 (training), 9 (Ray)** | PyTorch Lightning for detector training; Ray as the distributed execution backend (local multi-process, wired into detect2d/detect3d/track/fuse/label/evaluate's `--distributed` paths; `curate` deliberately excluded, see ADR-037) |
 | Model data curation — Parquet (PyArrow, Daft, Pandas) | **1, 8 — ingest, curate** | Parquet lake built directly on PyArrow (via the `BaseTable` schema pattern); Daft/Pandas aren't actually used anywhere in the repo, see KNOWN_GAPS.md |
 | Python dev, CI (GitHub Actions), Docker | **0 — foundation** | Already in place: ruff, mypy strict, pytest ≥80% coverage, GH Actions matrix, Docker |
 | Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); MCAP JSON export (10) |
@@ -102,7 +103,7 @@ appears once its phase is built and tested.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | Done |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Done |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | Done |
-| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS (no CLI verb) | Partial — Ray (local, detect2d + detect3d) + Lambda + EventBridge + Step Functions + ECS + one-table Glue/Athena; remaining Glue tables, Ray on other stages, real deployment/retry policy still open |
+| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS (no CLI verb) | Partial — Ray (local, 6/7 stages, `curate` deliberately excluded) + Lambda + EventBridge + Step Functions + ECS + one-table Glue/Athena; remaining Glue tables, real deployment/retry policy still open |
 | 10 | `forge visualize` — rerun.io RRD + MCAP JSON export | Done (FiftyOne deferred) |
 | 11 | Productionization — runbook, demo script | Done |
 

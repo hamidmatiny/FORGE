@@ -76,7 +76,7 @@ def test_ingest_requires_input_dir() -> None:
 def test_ingest_requires_local_flag() -> None:
     result = runner.invoke(app, ["ingest", "--input-dir", "tests/fixtures/nuscenes_mini_synthetic"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    assert "--distributed" in _plain(result.output)
 
 
 def test_ingest_succeeds_against_synthetic_fixture(tmp_path: Path) -> None:
@@ -150,10 +150,12 @@ def test_detect3d_distributed_flag_alone_satisfies_execution_mode_gate() -> None
     assert "unknown --mode" in _plain(result.output)
 
 
-def test_track_requires_local_flag() -> None:
+def test_track_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["track"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_track_requires_frames_lake(tmp_path: Path) -> None:
@@ -162,10 +164,12 @@ def test_track_requires_frames_lake(tmp_path: Path) -> None:
     assert "forge ingest" in _plain(result.output)
 
 
-def test_fuse_requires_local_flag() -> None:
+def test_fuse_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["fuse"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_fuse_requires_frames_lake(tmp_path: Path) -> None:
@@ -174,10 +178,12 @@ def test_fuse_requires_frames_lake(tmp_path: Path) -> None:
     assert "forge ingest" in _plain(result.output)
 
 
-def test_label_requires_local_flag() -> None:
+def test_label_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["label"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_label_requires_fused_objects_lake(tmp_path: Path) -> None:
@@ -186,10 +192,12 @@ def test_label_requires_fused_objects_lake(tmp_path: Path) -> None:
     assert "forge fuse" in _plain(result.output)
 
 
-def test_evaluate_requires_local_flag() -> None:
+def test_evaluate_requires_local_or_distributed_flag() -> None:
     result = runner.invoke(app, ["evaluate", "--gt-input-dir", "some/path"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--local" in output
+    assert "--distributed" in output
 
 
 def test_evaluate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
@@ -205,7 +213,7 @@ def test_evaluate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
 def test_curate_requires_local_flag() -> None:
     result = runner.invoke(app, ["curate"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    assert "no --distributed mode" in _plain(result.output)
 
 
 def test_curate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
@@ -217,7 +225,7 @@ def test_curate_requires_pseudo_labels_lake(tmp_path: Path) -> None:
 def test_visualize_requires_local_flag() -> None:
     result = runner.invoke(app, ["visualize"])
     assert result.exit_code == 1
-    assert "phase 9" in _plain(result.output)
+    assert "no --distributed mode" in _plain(result.output)
 
 
 def test_visualize_requires_pseudo_labels_lake(tmp_path: Path) -> None:

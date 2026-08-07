@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 
+from forge.distributed import run_distributed_map
 from forge.evaluate.metrics import EvalResult, evaluate_class
 from forge.schemas import EvalMetricRecord, GroundTruthRecord, PseudoLabelRecord
 
@@ -17,11 +18,24 @@ EVAL_VERSION = "bev-distance-ap-v1"
 _3D_GROUNDED_FUSION_TYPES = {"matched", "lidar_only"}
 
 
+def _evaluate_one_class(
+    class_name: str,
+    predictions_by_class: dict[str, list[tuple[tuple[float, float], float]]],
+    gt_by_class: dict[str, list[tuple[float, float]]],
+    distance_threshold_m: float,
+) -> EvalResult:
+    """Score one class against its own predictions/GT. Safe to run in a Ray worker."""
+    class_predictions = predictions_by_class.get(class_name, [])
+    class_gt = gt_by_class.get(class_name, [])
+    return evaluate_class(class_predictions, class_gt, distance_threshold_m)
+
+
 def run_evaluation(
     pseudo_labels: list[PseudoLabelRecord],
     ground_truth: list[GroundTruthRecord],
     decision_filter: str = "auto_accept",
     distance_threshold_m: float = 2.0,
+    distributed: bool = False,
 ) -> list[EvalMetricRecord]:
     """Score pseudo-labels against ground truth, one row per class plus one 'overall' row.
 
@@ -32,6 +46,12 @@ def run_evaluation(
             (default ``auto_accept`` — "how good are the labels we'd
             actually use"). Pass ``"all"`` to evaluate every decision.
         distance_threshold_m: BEV center-distance match threshold.
+        distributed: If True, scores each class via local Ray (see
+            ``forge.distributed.run_distributed_map``) instead of a plain
+            sequential loop — every class's matching only uses that
+            class's own predictions/GT, so this is genuinely parallel
+            (unlike ``forge.curate``, whose dedup decisions depend on
+            what's already been processed — see its module docstring).
     """
     eval_run_id = str(uuid.uuid4())
 
@@ -53,17 +73,19 @@ def run_evaluation(
 
     all_classes = sorted(set(predictions_by_class) | set(gt_by_class))
 
-    records: list[EvalMetricRecord] = []
-    per_class_results: list[EvalResult] = []
+    per_class_results = run_distributed_map(
+        lambda class_name, preds_by_cls, gt_by_cls: _evaluate_one_class(
+            class_name, preds_by_cls, gt_by_cls, distance_threshold_m
+        ),
+        all_classes,
+        distributed=distributed,
+        shared_args=(predictions_by_class, gt_by_class),
+    )
 
-    for class_name in all_classes:
-        class_predictions = predictions_by_class.get(class_name, [])
-        class_gt = gt_by_class.get(class_name, [])
-
-        result = evaluate_class(class_predictions, class_gt, distance_threshold_m)
-        per_class_results.append(result)
-        records.append(_to_record(eval_run_id, class_name, result, distance_threshold_m))
-
+    records = [
+        _to_record(eval_run_id, class_name, result, distance_threshold_m)
+        for class_name, result in zip(all_classes, per_class_results, strict=True)
+    ]
     records.append(
         _to_record(eval_run_id, "overall", _aggregate(per_class_results), distance_threshold_m)
     )

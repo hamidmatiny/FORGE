@@ -194,3 +194,36 @@ def test_run_tracking_empty_frame_ages_out_track() -> None:
     tracks = run_tracking(detections, frames, iou_threshold=0.3, max_age=1)
     assert len(tracks) == 1
     assert tracks[0].track_age == 1
+
+
+def test_run_tracking_distributed_true_produces_same_results_as_sequential() -> None:
+    """Ray's API mocked as a real-executing passthrough (see test_detect3d.py's identical
+
+    pattern) -- confirms run_tracking wires (scene, sensor) groups through
+    shared_args correctly, not just that the right functions get called.
+    """
+    from unittest.mock import patch
+
+    frames = [_frame(f"f{i}", "scene-a", i * 100_000) for i in range(3)]
+    detections = [_det(f"d{i}", f"f{i}", x1=10.0 + i * 3) for i in range(3)]
+
+    with patch("forge.distributed.ray_utils.ray") as mock_ray:
+        mock_ray.is_initialized.return_value = False
+        mock_ray.put.side_effect = lambda arg: arg
+        mock_ray.remote.side_effect = lambda fn: _FakeRemote(fn)
+        mock_ray.get.side_effect = lambda futures: [f() for f in futures]
+
+        tracks = run_tracking(detections, frames, iou_threshold=0.3, max_age=3, distributed=True)
+
+    assert len(tracks) == 3
+    assert len({t.track_id for t in tracks}) == 1
+
+
+class _FakeRemote:
+    """Stand-in for a `ray.remote`-wrapped function: `.remote(*a)` returns a thunk."""
+
+    def __init__(self, fn: object) -> None:
+        self._fn = fn
+
+    def remote(self, *args: object) -> object:
+        return lambda: self._fn(*args)  # type: ignore[operator]

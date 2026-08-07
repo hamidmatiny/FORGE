@@ -59,7 +59,8 @@ def ingest(
     """Ingest a nuScenes-devkit-format dataset into the versioned Parquet data lake."""
     if not local:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] forge ingest has no --distributed mode — it parses a handful "
+            "of JSON metadata files, not a real parallelization target. Pass --local.",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -348,11 +349,15 @@ def track(
         typer.Option("--max-age", help="Frames a track survives with no matching detection."),
     ] = 3,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+    distributed: Annotated[
+        bool,
+        typer.Option("--distributed", help="Run tracking across local CPU cores via Ray."),
+    ] = False,
 ) -> None:
     """Associate 2D detections across frames into tracks (SORT: Kalman filter + Hungarian IoU)."""
-    if not local:
+    if not local and not distributed:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] Pass --local (single-process) or --distributed (local Ray).",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -360,7 +365,12 @@ def track(
     settings = get_settings()
     log_cli_invocation(
         command="track",
-        args={"iou_threshold": iou_threshold, "max_age": max_age, "local": local},
+        args={
+            "iou_threshold": iou_threshold,
+            "max_age": max_age,
+            "local": local,
+            "distributed": distributed,
+        },
         log_level=settings.log_level,
     )
 
@@ -393,7 +403,9 @@ def track(
 
     frames = FramesTable.read_parquet(str(frames_path))
     detections = Detections2DTable.read_parquet(str(detections_path))
-    tracks = run_tracking(detections, frames, iou_threshold=iou_threshold, max_age=max_age)
+    tracks = run_tracking(
+        detections, frames, iou_threshold=iou_threshold, max_age=max_age, distributed=distributed
+    )
 
     output_path = settings.data_lake_root / "tracks.parquet"
     TracksTable.write_parquet(tracks, str(output_path))
@@ -414,11 +426,15 @@ def fuse(
         ),
     ] = 0.1,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+    distributed: Annotated[
+        bool,
+        typer.Option("--distributed", help="Run fusion across local CPU cores via Ray."),
+    ] = False,
 ) -> None:
     """Fuse camera and lidar detections via calibrated projection + IoU association."""
-    if not local:
+    if not local and not distributed:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] Pass --local (single-process) or --distributed (local Ray).",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -426,7 +442,7 @@ def fuse(
     settings = get_settings()
     log_cli_invocation(
         command="fuse",
-        args={"iou_threshold": iou_threshold, "local": local},
+        args={"iou_threshold": iou_threshold, "local": local, "distributed": distributed},
         log_level=settings.log_level,
     )
 
@@ -475,7 +491,12 @@ def fuse(
     )
 
     fused = run_fusion(
-        detections_2d, detections_3d, frames, calibration, iou_threshold=iou_threshold
+        detections_2d,
+        detections_3d,
+        frames,
+        calibration,
+        iou_threshold=iou_threshold,
+        distributed=distributed,
     )
 
     output_path = settings.data_lake_root / "fused_objects.parquet"
@@ -511,11 +532,15 @@ def label(
         ),
     ] = DEFAULT_SINGLE_MODALITY_DISCOUNT,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+    distributed: Annotated[
+        bool,
+        typer.Option("--distributed", help="Score each object across local CPU cores via Ray."),
+    ] = False,
 ) -> None:
     """Active-learning selection + pseudo-label generation with confidence-gated review queue."""
-    if not local:
+    if not local and not distributed:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] Pass --local (single-process) or --distributed (local Ray).",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -528,6 +553,7 @@ def label(
             "reject_threshold": reject_threshold,
             "single_modality_discount": single_modality_discount,
             "local": local,
+            "distributed": distributed,
         },
         log_level=settings.log_level,
     )
@@ -563,6 +589,7 @@ def label(
             auto_accept_threshold=auto_accept_threshold,
             reject_threshold=reject_threshold,
             single_modality_discount=single_modality_discount,
+            distributed=distributed,
         )
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}", highlight=False)
@@ -606,11 +633,15 @@ def evaluate(
         typer.Option("--distance-threshold", help="BEV center-distance match threshold (meters)."),
     ] = 2.0,
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
+    distributed: Annotated[
+        bool,
+        typer.Option("--distributed", help="Score each class across local CPU cores via Ray."),
+    ] = False,
 ) -> None:
     """Evaluate auto-labels against ground truth and log quality metrics (evaluation only)."""
-    if not local:
+    if not local and not distributed:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] Pass --local (single-process) or --distributed (local Ray).",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -624,6 +655,7 @@ def evaluate(
             "decision_filter": decision_filter,
             "distance_threshold": distance_threshold,
             "local": local,
+            "distributed": distributed,
         },
         log_level=settings.log_level,
     )
@@ -659,6 +691,7 @@ def evaluate(
         ground_truth,
         decision_filter=decision_filter,
         distance_threshold_m=distance_threshold,
+        distributed=distributed,
     )
 
     output_path = settings.data_lake_root / "eval_metrics.parquet"
@@ -705,7 +738,8 @@ def curate(
     """Curate, deduplicate (LanceDB vector search), and export annotation datasets."""
     if not local:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] forge curate has no --distributed mode — its incremental "
+            "LanceDB dedup is inherently sequential (see DECISIONS.md). Pass --local.",
             highlight=False,
         )
         raise typer.Exit(code=1)
@@ -786,7 +820,8 @@ def visualize(
     """Export pseudo-labels for offline review (rerun.io RRD or Foxglove MCAP)."""
     if not local:
         console.print(
-            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            "[red]Error:[/red] forge visualize has no --distributed mode — it writes one "
+            "output file per format, an inherently sequential write. Pass --local.",
             highlight=False,
         )
         raise typer.Exit(code=1)

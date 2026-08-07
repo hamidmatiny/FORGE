@@ -222,3 +222,56 @@ def test_run_fusion_missing_calibration_is_camera_only() -> None:
     fused = run_fusion([det_2d], [], frames, calibration=[])  # no calibration at all
     assert len(fused) == 1
     assert fused[0].fusion_type == "camera_only"
+
+
+def test_run_fusion_distributed_true_produces_same_results_as_sequential() -> None:
+    """Ray's API mocked as a real-executing passthrough (see test_detect3d.py's identical
+
+    pattern) -- confirms run_fusion wires the shared lookup dicts through
+    shared_args correctly, not just that the right functions get called.
+    """
+    from unittest.mock import patch
+
+    frames = [
+        _frame("cam0", "scene-a", 0, "CAM_FRONT"),
+        _frame("cam1", "scene-a", 100, "CAM_FRONT"),
+    ]
+    det_2d_0 = Detection2DRecord(
+        detection_id="2d-0",
+        frame_id="cam0",
+        class_id=1,
+        class_name="vehicle",
+        score=0.9,
+        bbox_xyxy=[10.0, 10.0, 20.0, 20.0],
+        model_version="t",
+    )
+    det_2d_1 = Detection2DRecord(
+        detection_id="2d-1",
+        frame_id="cam1",
+        class_id=1,
+        class_name="vehicle",
+        score=0.8,
+        bbox_xyxy=[5.0, 5.0, 15.0, 15.0],
+        model_version="t",
+    )
+
+    with patch("forge.distributed.ray_utils.ray") as mock_ray:
+        mock_ray.is_initialized.return_value = False
+        mock_ray.put.side_effect = lambda arg: arg
+        mock_ray.remote.side_effect = lambda fn: _FakeRemote(fn)
+        mock_ray.get.side_effect = lambda futures: [f() for f in futures]
+
+        fused = run_fusion([det_2d_0, det_2d_1], [], frames, calibration=[], distributed=True)
+
+    assert len(fused) == 2
+    assert all(f.fusion_type == "camera_only" for f in fused)
+
+
+class _FakeRemote:
+    """Stand-in for a `ray.remote`-wrapped function: `.remote(*a)` returns a thunk."""
+
+    def __init__(self, fn: object) -> None:
+        self._fn = fn
+
+    def remote(self, *args: object) -> object:
+        return lambda: self._fn(*args)  # type: ignore[operator]

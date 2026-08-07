@@ -1,0 +1,45 @@
+name: release
+
+# Builds the sdist/wheel and attaches them to the GitHub Release for the
+# pushed tag. Runs on GitHub's own infrastructure specifically because the
+# environment that built this repo's automation could reach api.github.com
+# (creating the v0.1.0 release itself worked) but not uploads.github.com
+# (the separate domain release-asset uploads go through) -- see
+# DECISIONS.md's packaging ADR. This workflow is the actual fix: CI runners
+# have no such restriction, so let CI do the upload instead of a sandboxed
+# agent.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Verify built artifacts
+        run: |
+          uv run --with twine twine check dist/*
+          python3 -m venv /tmp/release_check_venv
+          /tmp/release_check_venv/bin/pip install --quiet dist/*.whl
+          /tmp/release_check_venv/bin/forge --version
+
+      - name: Attach artifacts to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true

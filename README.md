@@ -61,7 +61,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
-| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS | 🟡 Ray (local) + Lambda + EventBridge + Step Functions + ECS done |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS | 🟡 Ray (6/7 stages) + Lambda + EventBridge + Step Functions + ECS done |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ✅ |
 | 11 | Productionization — runbook, demo script | ✅ |
 
@@ -224,10 +224,12 @@ forge detect3d --mode infer --pointcloud-root <dir> --distributed
 ```
 
 `forge.distributed.run_distributed_map`: a Ray-backed local-multi-process
-map utility, wired into `detect2d`'s and `detect3d`'s per-frame inference.
-`--distributed` runs each frame's inference across local CPU cores via
+map utility, wired into `detect2d`, `detect3d`, `track`, `fuse`, `label`,
+and `evaluate`'s core loops (`curate` deliberately excluded — its
+LanceDB dedup has a real sequential dependency between iterations).
+`--distributed` runs each stage's per-item work across local CPU cores via
 Ray instead of sequentially — same results either way, just execution
-strategy. Large shared objects (the model) go through `ray.put()` once
+strategy. Large shared objects (e.g. a detector model) go through `ray.put()` once
 via `shared_args`, not a closure, so Ray doesn't re-serialize them per
 call. No real Ray cluster is provisioned (local CPU only, same
 cost-safety policy as everywhere else).

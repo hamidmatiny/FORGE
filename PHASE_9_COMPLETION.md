@@ -128,9 +128,10 @@ distinguishing the two service names.
 
 ## What this phase does *not* claim
 
-- Ray is wired into `detect2d` and `detect3d` only — track/fuse/label/
-  evaluate/curate still run single-process; none of them have a
-  `--distributed` flag yet.
+- Ray is wired into `detect2d`, `detect3d`, `track`, `fuse`, `label`, and
+  `evaluate` — `curate` deliberately does not have a `--distributed` mode
+  (its incremental LanceDB dedup has a real sequential data dependency
+  between iterations, see DECISIONS.md ADR-037).
 - Ray's actual parallel execution was never verified working in *this*
   development environment — only its API usage, via mocks. (It *has* been
   confirmed working on a real user machine, including the `ray.put()` fix

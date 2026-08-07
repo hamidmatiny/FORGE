@@ -7,6 +7,13 @@ policy every other phase follows. A real Ray cluster (EC2/EKS-backed) is
 what a production deployment would point this at instead, by passing a
 cluster address to ``ray.init()`` — deliberately not built here, since
 provisioning and paying for one isn't something this project does.
+
+Ray itself is imported lazily (only when ``distributed=True`` is actually
+requested and there's at least one item to process) rather than at module
+level. Callers like ``forge.label`` had zero external dependencies before
+gaining a ``--distributed`` option — module-level ``import ray`` would
+have silently forced Ray onto every caller of this module, even ones that
+only ever run the sequential path. See DECISIONS.md.
 """
 
 from __future__ import annotations
@@ -14,10 +21,23 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-import ray
-
 T = TypeVar("T")
 R = TypeVar("R")
+
+# Lazily populated by _ensure_ray_imported() -- see module docstring. `Any`
+# because its real type (the `ray` module) isn't known until imported;
+# `None` is also a valid patch target for tests
+# (`patch("forge.distributed.ray_utils.ray")`) without triggering a real
+# import.
+ray: Any = None
+
+
+def _ensure_ray_imported() -> None:
+    global ray
+    if ray is None:
+        import ray as _ray
+
+        ray = _ray
 
 
 def run_distributed_map(
@@ -56,6 +76,8 @@ def run_distributed_map(
     """
     if not distributed or not items:
         return [fn(item, *shared_args) for item in items]
+
+    _ensure_ray_imported()
 
     was_already_initialized = ray.is_initialized()
     if not was_already_initialized:

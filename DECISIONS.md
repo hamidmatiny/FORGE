@@ -1073,3 +1073,72 @@ same limitation ADR-013 documented from the very first phase this project
 built). Every other step (ruff, both mypy runs, pytest, HCL validation,
 state machine validation) was run for real against an already-populated
 environment and confirmed correct.
+
+## Phase 9 (continued yet again) — Ray on track/fuse/label/evaluate; curate stays sequential (2026-08-07)
+
+### ADR-036: Ray wired into track, fuse, label, evaluate — each independently confirmed genuinely parallel first
+
+**Context:** `run_distributed_map` had proven itself twice (detect2d,
+detect3d) but was still only wired into those two stages. Before wiring
+it into the remaining five (track, fuse, label, evaluate, curate), each
+was actually read to confirm its core loop has no cross-item dependency —
+not assumed parallel just because it's a loop.
+
+**Decision:**
+- `track`: one independent `SortTracker` per `(scene_id, sensor_id)`
+  group — the tracker's internal state never crosses groups, so groups
+  are embarrassingly parallel. `_track_one_group` extracted, wired via
+  `shared_args=(detections_by_frame,)`.
+- `fuse`: one independent fusion decision per camera frame (matched
+  against its synchronized lidar sweep) — no camera frame's output
+  affects another's. `_fuse_one_camera_frame` extracted, wired via
+  `shared_args` for the four shared lookup dicts.
+- `label`: each fused object is scored independently — no shared mutable
+  state at all. `_label_one_object` extracted, wired via `shared_args`
+  for the two detection-lookup dicts.
+- `evaluate`: each class's BEV-distance matching only touches that
+  class's own predictions/GT — classes never interact.
+  `_evaluate_one_class` extracted, wired via `shared_args` for the two
+  per-class lookup dicts.
+
+All four follow the identical shape established by detect2d/detect3d:
+extract a per-item function, pass large/shared state via `shared_args`
+(so Ray `ray.put()`s it once instead of re-serializing it into the
+closure), add a `--distributed` CLI flag matching the exact existing
+error-message wording.
+
+**Consequences:** Verified each refactor didn't change behavior by
+re-running that stage's existing test suite immediately after (all green,
+unchanged counts) before adding any new tests, then ran a full sequential
+CLI pipeline end-to-end (ingest through evaluate) and confirmed identical
+output to every prior phase's manual check. New "fake-remote" tests for
+`track` and `fuse` (matching `test_detect3d.py`'s existing pattern)
+actually *execute* the real per-item logic through a mocked-but-functional
+Ray stand-in, not just verifying call patterns.
+
+### ADR-037: `curate` deliberately does NOT get `--distributed` — its dedup loop has a real sequential dependency
+
+**Context:** `curate`'s core loop processes candidates highest-
+`trust_score`-first, and each iteration's duplicate/keep decision depends
+on querying a LanceDB table that *prior* iterations in the same run have
+already inserted into. This is fundamentally different from track/fuse/
+label/evaluate's loops — there's a genuine data dependency between
+iterations, not just a shared read-only lookup.
+
+**Decision:** Don't force a `--distributed` flag onto `curate`. Naively
+parallelizing it would either (a) produce wrong results (parallel workers
+racing to query/insert against the same LanceDB table with no ordering
+guarantee, breaking the "highest-trust-first, first-seen-wins"
+semantics that make its output deterministic and auditable) or (b)
+require restructuring the algorithm entirely (e.g. a parallel nearest-
+neighbor pass followed by a separate sequential resolution pass) — a real
+design project of its own, not a mechanical extraction like the other
+four. `forge curate`'s CLI error message was also stale ("Distributed
+(Ray) execution lands in Phase 9" — Phase 9 already happened) and is now
+fixed to state the real reason plainly instead.
+
+**Consequences:** `curate` stays single-process, honestly. Same fix
+applied to `ingest` (parses a handful of JSON files — not a real
+parallelization target) and `visualize` (writes one output file per
+format — inherently a single sequential write) — both had the identical
+stale message, now accurate for each.

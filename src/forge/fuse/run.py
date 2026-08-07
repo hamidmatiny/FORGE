@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 
+from forge.distributed import run_distributed_map
 from forge.fuse.projection import project_box_to_bbox
 from forge.schemas import (
     CalibrationRecord,
@@ -96,12 +97,92 @@ def _fused_lidar_only(
     )
 
 
+def _fuse_one_camera_frame(
+    camera_frame: FrameRecord,
+    detections_2d_by_frame: dict[str, list[Detection2DRecord]],
+    detections_3d_by_frame: dict[str, list[Detection3DRecord]],
+    calibration_by_sensor: dict[str, CalibrationRecord],
+    lidar_frames_by_key: dict[tuple[str, int], list[FrameRecord]],
+    iou_threshold: float,
+) -> list[FusedObjectRecord]:
+    """Fuse one camera frame against its synchronized lidar sweep. Safe to run in a Ray worker."""
+    output: list[FusedObjectRecord] = []
+
+    camera_detections = detections_2d_by_frame.get(camera_frame.frame_id, [])
+    calibration_record = calibration_by_sensor.get(camera_frame.sensor_id)
+    synchronized_lidar_frames = lidar_frames_by_key.get(
+        (camera_frame.scene_id, camera_frame.timestamp_us), []
+    )
+
+    if calibration_record is None or not synchronized_lidar_frames:
+        # No calibration or no synchronized lidar sweep -- nothing to fuse against.
+        for det_2d in camera_detections:
+            output.append(
+                _fused_camera_only(camera_frame.scene_id, camera_frame.timestamp_us, det_2d)
+            )
+        return output
+
+    lidar_frame = synchronized_lidar_frames[
+        0
+    ]  # documented simplification, see run_fusion's docstring
+    lidar_detections = detections_3d_by_frame.get(lidar_frame.frame_id, [])
+
+    projected_boxes: list[tuple[float, float, float, float]] = []
+    projectable_lidar_detections: list[Detection3DRecord] = []
+    for det_3d in lidar_detections:
+        projected = project_box_to_bbox(
+            det_3d.center_xyz, det_3d.dimensions_whl, det_3d.yaw, calibration_record
+        )
+        if projected is None:
+            output.append(
+                _fused_lidar_only(camera_frame.scene_id, camera_frame.timestamp_us, det_3d, None)
+            )
+            continue
+        projected_boxes.append(projected)
+        projectable_lidar_detections.append(det_3d)
+
+    camera_boxes = [
+        (d.bbox_xyxy[0], d.bbox_xyxy[1], d.bbox_xyxy[2], d.bbox_xyxy[3]) for d in camera_detections
+    ]
+    matches, unmatched_lidar, unmatched_camera = associate(
+        projected_boxes, camera_boxes, iou_threshold
+    )
+
+    for lidar_idx, camera_idx in matches:
+        output.append(
+            _fused_from_match(
+                camera_frame.scene_id,
+                camera_frame.timestamp_us,
+                camera_detections[camera_idx],
+                projectable_lidar_detections[lidar_idx],
+            )
+        )
+    for lidar_idx in unmatched_lidar:
+        output.append(
+            _fused_lidar_only(
+                camera_frame.scene_id,
+                camera_frame.timestamp_us,
+                projectable_lidar_detections[lidar_idx],
+                projected_boxes[lidar_idx],
+            )
+        )
+    for camera_idx in unmatched_camera:
+        output.append(
+            _fused_camera_only(
+                camera_frame.scene_id, camera_frame.timestamp_us, camera_detections[camera_idx]
+            )
+        )
+
+    return output
+
+
 def run_fusion(
     detections_2d: list[Detection2DRecord],
     detections_3d: list[Detection3DRecord],
     frames: list[FrameRecord],
     calibration: list[CalibrationRecord],
     iou_threshold: float = 0.1,
+    distributed: bool = False,
 ) -> list[FusedObjectRecord]:
     """Fuse camera and lidar detections, one synchronized (camera, lidar) frame pair at a time.
 
@@ -112,6 +193,15 @@ def run_fusion(
     nuScenes samples are *nominally* synchronized but not bit-exact — see
     DECISIONS.md). Calibration is looked up by sensor_id, taking the first
     match if there happen to be duplicates for one channel.
+
+    Args:
+        distributed: If True, runs each camera frame's fusion via local Ray
+            (see ``forge.distributed.run_distributed_map``) instead of a
+            plain sequential loop — every camera frame is independent, so
+            this is genuinely parallel. The shared lookup dicts are passed
+            via ``shared_args`` so Ray ``ray.put()``s them once rather than
+            re-serializing them into the remote function definition for
+            every frame.
     """
     detections_2d_by_frame: dict[str, list[Detection2DRecord]] = defaultdict(list)
     for detection_2d in detections_2d:
@@ -131,73 +221,21 @@ def run_fusion(
         if frame.sensor_id.startswith("LIDAR"):
             lidar_frames_by_key[(frame.scene_id, frame.timestamp_us)].append(frame)
 
+    per_frame_results = run_distributed_map(
+        lambda camera_frame, det2d, det3d, calib, lidar_frames: _fuse_one_camera_frame(
+            camera_frame, det2d, det3d, calib, lidar_frames, iou_threshold
+        ),
+        camera_frames,
+        distributed=distributed,
+        shared_args=(
+            detections_2d_by_frame,
+            detections_3d_by_frame,
+            calibration_by_sensor,
+            lidar_frames_by_key,
+        ),
+    )
+
     output: list[FusedObjectRecord] = []
-
-    for camera_frame in camera_frames:
-        camera_detections = detections_2d_by_frame.get(camera_frame.frame_id, [])
-        calibration_record = calibration_by_sensor.get(camera_frame.sensor_id)
-        synchronized_lidar_frames = lidar_frames_by_key.get(
-            (camera_frame.scene_id, camera_frame.timestamp_us), []
-        )
-
-        if calibration_record is None or not synchronized_lidar_frames:
-            # No calibration or no synchronized lidar sweep -- nothing to fuse against.
-            for det_2d in camera_detections:
-                output.append(
-                    _fused_camera_only(camera_frame.scene_id, camera_frame.timestamp_us, det_2d)
-                )
-            continue
-
-        lidar_frame = synchronized_lidar_frames[0]  # documented simplification, see docstring
-        lidar_detections = detections_3d_by_frame.get(lidar_frame.frame_id, [])
-
-        projected_boxes: list[tuple[float, float, float, float]] = []
-        projectable_lidar_detections: list[Detection3DRecord] = []
-        for det_3d in lidar_detections:
-            projected = project_box_to_bbox(
-                det_3d.center_xyz, det_3d.dimensions_whl, det_3d.yaw, calibration_record
-            )
-            if projected is None:
-                output.append(
-                    _fused_lidar_only(
-                        camera_frame.scene_id, camera_frame.timestamp_us, det_3d, None
-                    )
-                )
-                continue
-            projected_boxes.append(projected)
-            projectable_lidar_detections.append(det_3d)
-
-        camera_boxes = [
-            (d.bbox_xyxy[0], d.bbox_xyxy[1], d.bbox_xyxy[2], d.bbox_xyxy[3])
-            for d in camera_detections
-        ]
-        matches, unmatched_lidar, unmatched_camera = associate(
-            projected_boxes, camera_boxes, iou_threshold
-        )
-
-        for lidar_idx, camera_idx in matches:
-            output.append(
-                _fused_from_match(
-                    camera_frame.scene_id,
-                    camera_frame.timestamp_us,
-                    camera_detections[camera_idx],
-                    projectable_lidar_detections[lidar_idx],
-                )
-            )
-        for lidar_idx in unmatched_lidar:
-            output.append(
-                _fused_lidar_only(
-                    camera_frame.scene_id,
-                    camera_frame.timestamp_us,
-                    projectable_lidar_detections[lidar_idx],
-                    projected_boxes[lidar_idx],
-                )
-            )
-        for camera_idx in unmatched_camera:
-            output.append(
-                _fused_camera_only(
-                    camera_frame.scene_id, camera_frame.timestamp_us, camera_detections[camera_idx]
-                )
-            )
-
+    for frame_results in per_frame_results:
+        output.extend(frame_results)
     return output
