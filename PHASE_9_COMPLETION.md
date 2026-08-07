@@ -77,10 +77,29 @@ explicitly below.
   now, chosen over the originally-planned custom polling worker because
   Step Functions' native ECS integration makes a bespoke poller
   redundant. See DECISIONS.md ADR-034.
-- **New test coverage**: `tests/test_lambda_ingest_trigger.py` now mocks
-  both the SQS and EventBridge boto3 clients (distinguished by service
-  name), with dedicated tests for the EventBridge entry's shape and that
-  both destinations receive identical payloads.
+- **New test coverage**: `tests/test_lambda_ingest_trigger.py` mocks the
+  SQS and EventBridge boto3 clients plus an in-memory fake DynamoDB
+  backend (distinguished by service name), with dedicated tests for the
+  EventBridge entry's shape and that both destinations receive identical
+  payloads for the specific upload that completes a dataset.
+
+### DynamoDB completeness tracking + Step Functions retry policy (a later round)
+
+- **`infra/terraform/dynamodb.tf`** — a `PAY_PER_REQUEST` DynamoDB table
+  tracking which file categories have been seen per `dataset_root`. The
+  Lambda now publishes to EventBridge only once per dataset, the first
+  time it looks minimally complete — SQS still gets every valid upload
+  unchanged. See DECISIONS.md ADR-039 for the heuristic and its real
+  limitations, verified against an in-memory fake DynamoDB through 5
+  scenarios before being wired into the handler.
+- **Real Retry policy on every Step Functions Task state** (ADR-040) —
+  retries transient ECS/Fargate errors specifically, not genuine
+  application failures. `scripts/validate_state_machine.py` extended to
+  assert every Task state has one, verified to actually catch a missing
+  Retry before being trusted.
+- `tests/test_lambda_ingest_trigger.py` rewritten again: 26 tests (up
+  from 20), including direct unit tests for the completeness-tracking
+  logic itself, not just handler-level integration tests.
 
 ## Verified before commit
 
@@ -89,10 +108,10 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/forge                              # strict, 0 errors
 uv run mypy infra/lambda/ingest_trigger/handler.py  # strict, 0 errors
-uv run pytest -q                                     # see commit for exact numbers
+uv run pytest -q                                     # 188 passed, 90.23% coverage (threshold 80%)
 ```
 
-Plus: every `.tf` file (9 total, including the three new ones) parsed
+Plus: every `.tf` file (10 total, including `dynamodb.tf`) parsed
 successfully with `python-hcl2`. The Step Functions ASL definition's
 `locals`-block logic was independently re-simulated in Python (not just
 trusted from HCL syntax validity) to confirm the generated state chain has
@@ -143,13 +162,13 @@ distinguishing the two service names.
   (`scripts/validate_glue_schemas.py`, run via `scripts/check.sh`, would
   catch it on the next full check run, not automatically on the schema
   change itself).
-- Step Functions starts a pipeline run on *every* validated upload, not
-  once a whole dataset has finished landing — no completeness-tracking
-  design was built this round (a real design decision, not an oversight
-  — see DECISIONS.md ADR-034).
-- Step Functions' Task states have no retry policy for transient
-  ECS/Fargate failures — only genuine stage failures are caught (routed
-  to `PipelineFailed`).
+- Step Functions now starts a pipeline run once per `dataset_root` (via
+  DynamoDB-backed completeness tracking, ADR-039) rather than once per
+  upload — but the completeness check is a heuristic ("at least one file
+  of each category"), not a guarantee every expected file has arrived.
+- Every Task state now has a real Retry policy for transient ECS/Fargate
+  failures (ADR-040) — untuned against real failure data, since this has
+  never been deployed.
 - `ecs.tf`'s task definition references a container image
   (`var.forge_container_image`) that was never built or pushed to a
   registry — a real deployment step outside this repo's cost-safety

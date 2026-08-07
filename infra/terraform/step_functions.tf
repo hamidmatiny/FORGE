@@ -15,9 +15,10 @@
 
 locals {
   # One Task state per pipeline stage. `command` is the forge CLI
-  # invocation that stage runs; `retry` is left at ASL defaults (no
-  # retry) deliberately -- transient ECS/Fargate failures are a real
-  # concern this doesn't handle, see KNOWN_GAPS.md.
+  # invocation that stage runs. Every state gets the same Retry policy
+  # (see forge_pipeline_retry below) for transient ECS/Fargate failures --
+  # genuine application failures still exhaust retries and fall through
+  # to Catch -> PipelineFailed.
   forge_pipeline_stages = [
     { name = "Ingest", command = ["forge", "ingest", "--input-dir", "$RAW_DATA_PATH", "--local"] },
     { name = "Detect2D", command = ["forge", "detect2d", "--mode", "infer", "--images-root", "$RAW_DATA_PATH", "--local"] },
@@ -29,6 +30,23 @@ locals {
     { name = "Visualize", command = ["forge", "visualize", "--format", "mcap", "--local"] },
   ]
 
+  # Retries transient infra failures (ECS API throttling, a task that
+  # times out waiting for capacity) up to 2 extra attempts with
+  # exponential backoff -- deliberately NOT "States.ALL", which would
+  # also retry genuine application failures (a real bug in that stage)
+  # as if they might succeed on a second try. Numbers (30s initial
+  # interval, 2.0 backoff rate, 2 retries) are a reasonable starting
+  # point, not tuned against any real failure data -- there isn't any,
+  # since this has never been deployed (see KNOWN_GAPS.md).
+  forge_pipeline_retry = [
+    {
+      ErrorEquals     = ["States.Timeout", "States.TaskFailed", "ECS.AmazonECSException"]
+      IntervalSeconds = 30
+      MaxAttempts     = 2
+      BackoffRate     = 2.0
+    }
+  ]
+
   # Build states with correct Next/End chaining from the list above.
   forge_pipeline_states = {
     for idx, stage in local.forge_pipeline_stages :
@@ -37,6 +55,7 @@ locals {
         Type       = "Task"
         Resource   = "arn:aws:states:::ecs:runTask.sync"
         ResultPath = "$.${lower(stage.name)}Result"
+        Retry      = local.forge_pipeline_retry
         Parameters = {
           Cluster        = aws_ecs_cluster.forge.arn
           TaskDefinition = aws_ecs_task_definition.forge_pipeline.arn

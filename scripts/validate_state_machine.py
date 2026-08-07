@@ -35,6 +35,14 @@ FORGE_PIPELINE_STAGES = [
 
 def build_definition() -> dict:
     """Mirror step_functions.tf's `local.forge_pipeline_definition` logic in Python."""
+    retry = [
+        {
+            "ErrorEquals": ["States.Timeout", "States.TaskFailed", "ECS.AmazonECSException"],
+            "IntervalSeconds": 30,
+            "MaxAttempts": 2,
+            "BackoffRate": 2.0,
+        }
+    ]
     states: dict[str, dict] = {}
     for idx, name in enumerate(FORGE_PIPELINE_STAGES):
         next_state = (
@@ -46,6 +54,7 @@ def build_definition() -> dict:
             "Type": "Task",
             "Resource": "arn:aws:states:::ecs:runTask.sync",
             "Next": next_state,
+            "Retry": retry,
             "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "PipelineFailed"}],
         }
     states["PipelineSucceeded"] = {"Type": "Succeed"}
@@ -79,6 +88,9 @@ def validate(definition: dict) -> list[str]:
         for catch in state.get("Catch", []):
             if catch["Next"] not in all_names:
                 errors.append(f"State '{name}' Catch -> '{catch['Next']}' does not exist")
+
+        if state_type == "Task" and not state.get("Retry"):
+            errors.append(f"Task state '{name}' has no Retry policy for transient failures")
 
     return errors
 

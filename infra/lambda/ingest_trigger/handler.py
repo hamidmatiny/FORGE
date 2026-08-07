@@ -4,13 +4,19 @@ Deployed via Terraform (see ../../terraform/lambda.tf), triggered on
 ``s3:ObjectCreated:*`` for the raw-data bucket. Deliberately lightweight —
 Lambda has execution time/memory limits unsuitable for the actual ML
 pipeline work (that's what Ray/ECS are for, per Phase 9's other half).
-This function's only job is: does this uploaded file look like a real
+This function's job is: does this uploaded file look like a real
 nuScenes file, and if so, tell downstream consumers about it — via SQS
-(a plain queue a simple consumer could poll) and via EventBridge (which
-triggers the Step Functions pipeline orchestration, see
-../../terraform/step_functions.tf and eventbridge.tf). Both are notified
-on every valid upload; nothing here decides whether a whole dataset is
-"complete" — that's the state machine's job (see ADR-034).
+(a plain queue a simple consumer could poll, on every valid upload) and,
+once a dataset looks minimally complete (see
+``_check_and_record_completeness``), via EventBridge (which triggers the
+Step Functions pipeline orchestration, see ../../terraform/step_functions.tf
+and eventbridge.tf).
+
+Completeness tracking uses a DynamoDB table (one item per
+``dataset_root``, a string-set attribute of file categories seen so far)
+rather than triggering the pipeline on every single upload — see
+``_check_and_record_completeness``'s docstring for the heuristic and its
+real limitations.
 
 Not part of the ``forge`` package — Lambda deployment packages are
 typically standalone, zip-deployed modules, not full installable
@@ -38,6 +44,12 @@ _SENSOR_FILE_RE = re.compile(r"^(?P<root>.*?)(samples|sweeps)/[\w_]+/.+$")
 
 _EVENT_SOURCE = "forge.ingest"
 _EVENT_DETAIL_TYPE = "IngestUploadValidated"
+
+# A dataset is considered "minimally complete" once at least one file of
+# each category has been seen for its dataset_root -- see
+# _check_and_record_completeness's docstring for what this does and
+# doesn't guarantee.
+_REQUIRED_CATEGORIES = frozenset({"metadata_table", "sensor_file"})
 
 
 @dataclass(frozen=True)
@@ -98,23 +110,74 @@ def build_notification(
     )
 
 
-def lambda_handler(event: dict[str, Any], context: object) -> dict[str, int]:
-    """Entry point: validate each S3 record, publish valid ones to SQS + EventBridge.
+def _check_and_record_completeness(
+    dynamodb_client: Any,  # noqa: ANN401 - untyped boto3 client, no stubs installed
+    table_name: str,
+    dataset_root: str,
+    file_category: str,
+) -> bool:
+    """Record `file_category` as seen for `dataset_root`; return True if this
 
-    EventBridge publication triggers the Step Functions pipeline (via the
-    rule in ../../terraform/eventbridge.tf); SQS remains available for a
-    simpler polling consumer. Both get the identical notification payload.
+    specific update is what just made the dataset newly "complete".
+
+    Heuristic, not a guarantee: "complete" means at least one
+    metadata_table file and at least one sensor_file have been seen for
+    this dataset_root -- NOT that every expected file has arrived. A real
+    nuScenes drop has many metadata tables and many sensor files; this
+    doesn't count or verify any of them individually, it only checks that
+    both *categories* have shown up at least once. Chosen over a fully
+    rigorous per-file completeness design (e.g. an expected manifest with
+    a count to match) because that's real, unbuildable-without-guessing
+    scope for this pass -- see DECISIONS.md and KNOWN_GAPS.md.
+
+    Returns False (and does NOT re-publish) on every upload after the
+    dataset first became complete, so one dataset triggers the pipeline
+    at most once from this path.
+    """
+    existing = dynamodb_client.get_item(
+        TableName=table_name, Key={"dataset_root": {"S": dataset_root}}
+    )
+    previously_seen: frozenset[str] = frozenset(
+        existing.get("Item", {}).get("categories_seen", {}).get("SS", [])
+    )
+    was_complete = _REQUIRED_CATEGORIES.issubset(previously_seen)
+
+    dynamodb_client.update_item(
+        TableName=table_name,
+        Key={"dataset_root": {"S": dataset_root}},
+        UpdateExpression="ADD categories_seen :cat",
+        ExpressionAttributeValues={":cat": {"SS": [file_category]}},
+    )
+
+    now_seen = previously_seen | {file_category}
+    is_complete_now = _REQUIRED_CATEGORIES.issubset(now_seen)
+
+    return is_complete_now and not was_complete
+
+
+def lambda_handler(event: dict[str, Any], context: object) -> dict[str, int]:
+    """Entry point: validate each S3 record, publish to SQS always, EventBridge once-complete.
+
+    SQS gets every valid upload (a simple "stuff arrived" queue). EventBridge
+    — which triggers the Step Functions pipeline — only gets published the
+    first time a dataset_root's completeness heuristic is satisfied (see
+    `_check_and_record_completeness`), not on every single upload.
 
     Returns:
-        Summary counts: ``{"processed": N, "published": M, "skipped": K}``.
+        Summary counts: ``{"processed": N, "published": M, "triggered": T, "skipped": K}``.
+        `published` counts valid uploads (always sent to SQS); `triggered`
+        counts how many of those also started a pipeline run via EventBridge.
     """
     queue_url = os.environ["INGEST_QUEUE_URL"]
     event_bus_name = os.environ["EVENT_BUS_NAME"]
+    completeness_table_name = os.environ["COMPLETENESS_TABLE_NAME"]
     sqs = boto3.client("sqs")
     events_client = boto3.client("events")
+    dynamodb_client = boto3.client("dynamodb")
 
     processed = 0
     published = 0
+    triggered = 0
     skipped = 0
 
     for record in event.get("Records", []):
@@ -133,16 +196,30 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, int]:
         payload = json.dumps(asdict(notification))
 
         sqs.send_message(QueueUrl=queue_url, MessageBody=payload)
-        events_client.put_events(
-            Entries=[
-                {
-                    "Source": _EVENT_SOURCE,
-                    "DetailType": _EVENT_DETAIL_TYPE,
-                    "Detail": payload,
-                    "EventBusName": event_bus_name,
-                }
-            ]
-        )
         published += 1
 
-    return {"processed": processed, "published": published, "skipped": skipped}
+        just_completed = _check_and_record_completeness(
+            dynamodb_client,
+            completeness_table_name,
+            notification.dataset_root,
+            notification.file_category,
+        )
+        if just_completed:
+            events_client.put_events(
+                Entries=[
+                    {
+                        "Source": _EVENT_SOURCE,
+                        "DetailType": _EVENT_DETAIL_TYPE,
+                        "Detail": payload,
+                        "EventBusName": event_bus_name,
+                    }
+                ]
+            )
+            triggered += 1
+
+    return {
+        "processed": processed,
+        "published": published,
+        "triggered": triggered,
+        "skipped": skipped,
+    }

@@ -1,15 +1,17 @@
 # S3-upload-triggered Lambda: validates nuScenes file layout, publishes
-# valid uploads to SQS for a downstream Ray/ECS ingest worker to consume.
-# See infra/lambda/ingest_trigger/handler.py for the actual logic.
+# valid uploads to SQS always, and to EventBridge once a dataset_root
+# looks minimally complete (see dynamodb_table.tf + handler.py's
+# _check_and_record_completeness). See infra/lambda/ingest_trigger/handler.py
+# for the actual logic.
 #
 # Lambda deliberately does none of the heavy lifting here -- it has
 # execution time/memory limits unsuitable for the ML pipeline itself.
-# This is the "notify something happened" layer; Ray (the other half of
-# Phase 9) is the "do the actual work" layer.
+# This is the "notify something happened" layer; Step Functions + ECS
+# (the rest of Phase 9) is the "do the actual work" layer.
 
 resource "aws_sqs_queue" "ingest_notifications" {
-  name                      = "forge-ingest-notifications-${var.environment}"
-  message_retention_seconds = 4 * 24 * 60 * 60 # 4 days
+  name                       = "forge-ingest-notifications-${var.environment}"
+  message_retention_seconds  = 4 * 24 * 60 * 60 # 4 days
   visibility_timeout_seconds = 300
 
   tags = {
@@ -57,6 +59,12 @@ data "aws_iam_policy_document" "ingest_trigger_permissions" {
     actions   = ["events:PutEvents"]
     resources = [aws_cloudwatch_event_bus.forge.arn]
   }
+
+  statement {
+    sid       = "TrackDatasetCompleteness"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.dataset_completeness.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "ingest_trigger" {
@@ -78,8 +86,9 @@ resource "aws_lambda_function" "ingest_trigger" {
 
   environment {
     variables = {
-      INGEST_QUEUE_URL = aws_sqs_queue.ingest_notifications.url
-      EVENT_BUS_NAME    = aws_cloudwatch_event_bus.forge.name
+      INGEST_QUEUE_URL      = aws_sqs_queue.ingest_notifications.url
+      EVENT_BUS_NAME        = aws_cloudwatch_event_bus.forge.name
+      COMPLETENESS_TABLE_NAME = aws_dynamodb_table.dataset_completeness.name
     }
   }
 

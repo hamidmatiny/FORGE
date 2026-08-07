@@ -1174,3 +1174,73 @@ automatic sync from `arrow_schema()` into the `.tf` file) — the
 verification script this was checked against isn't wired into CI, so a
 future schema change wouldn't automatically catch a stale Glue column
 list; tracked in KNOWN_GAPS.md.
+
+### ADR-039: DynamoDB-backed completeness tracking, not "trigger on every upload"
+
+**Context:** ADR-034 deliberately chose "every Lambda-validated upload
+starts a pipeline execution" as the simpler, honestly-scoped design over
+a completeness-tracking one, and documented the real cost of that choice
+in KNOWN_GAPS.md: a multi-file nuScenes drop would trigger many pipeline
+runs, each seeing whatever partial data exists in the raw bucket at that
+moment.
+
+**Decision:** Added a DynamoDB table (`forge-dataset-completeness-<env>`,
+`PAY_PER_REQUEST` billing) with one item per `dataset_root`, tracking
+which file categories (`metadata_table`, `sensor_file`) have been seen so
+far as a string set. The Lambda now checks-and-records via
+`_check_and_record_completeness` on every valid upload: SQS still gets
+every single one (unchanged — the "everything arrived" queue), but
+EventBridge (which triggers Step Functions) only gets published the
+*first* time a `dataset_root`'s category set newly satisfies "at least
+one of each" — not on every upload, and never again once already
+complete.
+
+This is a heuristic, not a rigorous completeness guarantee, and says so
+directly in the handler's docstring: "at least one file of each category"
+is not "every expected file has arrived" — a real nuScenes drop has many
+metadata tables and many sensor files, none of which are counted or
+verified individually. A fully rigorous design (an expected-file manifest
+with a count to match) was considered and rejected for this pass — not
+because it's not the right eventual answer, but because building it
+without a real dataset's actual file manifest to test against would mean
+guessing at requirements this repo has no way to verify, the same
+judgment call ADR-034 already made once.
+
+**Consequences:** Verified `_check_and_record_completeness` directly
+against an in-memory fake DynamoDB backend through 5 scenarios before
+writing it into the handler's control flow: first category (no trigger),
+repeated category (no trigger), second distinct category (triggers
+exactly once), already-complete dataset (never re-triggers), and two
+different `dataset_root`s staying isolated from each other. All five
+passed. `lambda_handler`'s return value gained a `triggered` count
+alongside `published`, distinguishing "how many valid uploads" from "how
+many of those started a pipeline run" — `tests/test_lambda_ingest_trigger.py`
+rewritten accordingly (26 tests, up from 20), including that a lone
+single-category upload genuinely does not call EventBridge at all
+(`put_events.assert_not_called()`), not just a count assertion.
+
+### ADR-040: Real Retry policy on every Step Functions Task state
+
+**Context:** ADR-035 left every Task state's retry behavior at ASL
+defaults (no automatic retry), documented in KNOWN_GAPS.md as a real gap:
+a transient ECS/Fargate failure (API throttling, a task timing out
+waiting for capacity) would fall straight through to `Catch` and fail the
+whole pipeline run, indistinguishable from a genuine application bug.
+
+**Decision:** Every Task state now has an identical `Retry` block:
+`ErrorEquals = ["States.Timeout", "States.TaskFailed",
+"ECS.AmazonECSException"]`, 30s initial interval, 2.0 backoff rate, 2 max
+attempts — deliberately *not* `States.ALL`, which would also retry a
+genuine application failure (a real bug in that stage's code) as if a
+second attempt might succeed. Those specific numbers are a reasonable
+starting point, not tuned against any real failure data — there isn't
+any, since this infrastructure has never been deployed (see
+KNOWN_GAPS.md). `scripts/validate_state_machine.py` extended to assert
+every Task state has a non-empty `Retry` — verified this actually catches
+a missing one by deliberately removing a state's Retry block and
+confirming the script reports it, before trusting the check.
+
+**Consequences:** Genuine stage failures still exhaust their 2 retries
+and fall through to `PipelineFailed` exactly as before — this doesn't
+mask real bugs, only gives transient infra hiccups a chance to resolve
+themselves first.
