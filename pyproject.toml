@@ -58,6 +58,10 @@ curate = [
 aws = [
     "boto3>=1.34",
 ]
+visualize = [
+    "mcap>=1.4.0",
+    "rerun-sdk>=0.35.0",
+]
 
 [dependency-groups]
 dev = [
@@ -102,8 +106,12 @@ module = "pyarrow.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*", "mlflow.*", "wandb.*", "lancedb.*", "boto3.*"]
+module = ["torch.*", "torchvision.*", "lightning.*", "PIL.*", "scipy.*", "mlflow.*", "wandb.*", "lancedb.*", "boto3.*", "rerun.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcap.*"
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -13,7 +13,7 @@ Entry point: `forge` (Typer).
 | `fuse` | 5 | Multi-sensor fusion |
 | `evaluate` | 6 | GT evaluation (evaluation-only) |
 | `curate` | 7 | Dataset curation |
-| `visualize` | 8 | rerun.io / Foxglove visualization |
+| `visualize` | 10 | rerun `.rrd` + MCAP JSON export (offline) |
 
 All unimplemented commands exit with code `1` and reference [KNOWN_GAPS.md](../KNOWN_GAPS.md).
 

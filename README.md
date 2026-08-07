@@ -62,7 +62,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
 | 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Ray (local) + Lambda done |
-| 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ⬜ |
+| 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ✅ |
 | 11 | Productionization — runbook, demo script | ⬜ |
 
 ## CLI
@@ -81,7 +81,7 @@ forge curate       # Phase 8
 forge visualize    # Phase 10
 ```
 
-Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md).
+Unimplemented commands exit with a clear error and reference [KNOWN_GAPS.md](KNOWN_GAPS.md). (Phase 11 productionization docs are the remaining open item in the checklist above.)
 
 ## Detection
 
@@ -231,6 +231,24 @@ wiring, and a Glue/Athena catalog (one representative table,
 matching every sibling repo's cost-safety policy. See
 `PHASE_9_COMPLETION.md`.
 
+## Visualization
+
+```bash
+uv sync --extra visualize --dev
+forge visualize --local --format rerun --output data/lake/review.rrd
+forge visualize --local --format mcap --output data/lake/review.mcap --decision-filter auto_accept
+```
+
+Exports `pseudo_labels.parquet` to an offline review file — rerun `.rrd` (3D
+boxes per timestamp, OpenGL-backed viewer when opened locally) or Foxglove-compatible
+MCAP with plain JSON messages. No live viewer is spawned from the CLI: this
+environment is headless, and the intended workflow is write-then-open on a machine
+with a display. Rerun export skips `camera_only` rows (sentinel `[0,0,0]` geometry
+would stack meaningless boxes at the origin); MCAP export keeps them because
+`bbox_xyxy` is still useful for 2D review. Boxes are batched per frame under one
+entity path, not wired to `tracks.parquet` for persistent object identity across
+frames. FiftyOne is not implemented in this pass. See `PHASE_10_COMPLETION.md`.
+
 ## Ingest
 
 ```bash
@@ -277,6 +295,7 @@ GitHub Actions runs ruff, mypy (strict), pytest (≥80% coverage), and uv lock c
 - [Phase 6 completion](PHASE_6_COMPLETION.md)
 - [Phase 7 completion](PHASE_7_COMPLETION.md)
 - [Phase 8 completion](PHASE_8_COMPLETION.md)
+- [Phase 10 completion](PHASE_10_COMPLETION.md)
 - [Phase 9 completion](PHASE_9_COMPLETION.md)
 - [Schema reference](docs/schemas.md)
 - [Known gaps](KNOWN_GAPS.md)

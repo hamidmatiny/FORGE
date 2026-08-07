@@ -16,7 +16,7 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | `forge curate` | Phase 8 | ✅ Done — LanceDB near-duplicate search over a geometric feature vector; see PHASE_8_COMPLETION.md |
 | Ray distributed execution | Phase 9 | `--local` flag reserved on all commands; Ray backend lands with cost-safety ADR (no real cluster in CI) |
 | Terraform AWS lake (S3/Glue/Athena) | Phase 9 | Applied out-of-band only, same policy as Vulcan/PRISM/hydra-data-factory |
-| `forge visualize` | Phase 10 | rerun.io / Foxglove MCAP / FiftyOne; requires `[viz]` extras |
+| `forge visualize` | Phase 10 | ✅ Done — rerun `.rrd` + MCAP JSON export; see PHASE_10_COMPLETION.md |
 | Productionization docs/runbook | Phase 11 | Not started |
 | MLflow / W&B wiring | Phase 7 | Settings stub exists; no tracking yet |
 | Hydra pipeline configs | Phase 1 | ✅ Done — Compose API loader in `forge/config.py`, `conf/ingest.yaml` |
@@ -62,3 +62,14 @@ Tracked limitations and deferred work. Every unimplemented CLI command reference
 | SQS queue has no consumer | Phase 9 | The Lambda publishes to `forge-ingest-notifications-<env>`, but nothing consumes it yet — that's the Ray/ECS ingest worker's job, which doesn't exist. |
 | Glue catalog covers one table | Phase 9 | Only `pseudo_labels` has a Glue table definition; the other ~9 lake tables would follow the identical mechanical pattern (map the Arrow schema to Glue/Hive types) but aren't built out. |
 | Daft / Pandas never used | Phase 1+ | The lake is built directly on PyArrow via `BaseTable`; despite `ARCHITECTURE.md` previously implying otherwise, `pandas` and `daft` were never actually added as dependencies or used anywhere in the repo — fixed to state that accurately rather than leaving the earlier overclaim standing. |
+
+## Phase 10 — Visualization gaps
+
+| Item | Notes |
+|------|-------|
+| No live/interactive viewer from CLI | Headless CI/dev environments have no display; `forge visualize` writes `.rrd`/`.mcap` files for a human to open later (`rerun`, Foxglove Studio). Never spawns a viewer process. |
+| No `tracks.parquet` identity in rerun export | Each frame's boxes are logged independently under `scenes/{scene_id}/boxes`; no per-track entity paths or cross-frame object identity without joining `tracks.parquet`. |
+| MCAP uses plain JSON, not Foxglove native schemas | Messages on `/forge/pseudo_labels` use `json` encoding with a small JSON-schema stub — not `foxglove.SceneUpdate` or other Foxglove protobuf/JSON well-known types. Foxglove can still ingest the file, but won't auto-render 3D primitives without a custom extension. |
+| MCAP includes `camera_only` rows; rerun export does not | Rerun skips sentinel `[0,0,0]` geometry (same reasoning as curate/evaluate); MCAP keeps full rows including `bbox_xyxy` for 2D review. |
+| FiftyOne not built | Phase description names rerun.io, Foxglove MCAP, and FiftyOne; this pass implements file export for the first two only. No FiftyOne dataset or launch integration. |
+| Empty `[viz]` extra placeholder | Phase 0 declared a `viz` extra; the populated extra is `[visualize]` (`rerun-sdk`, `mcap`). Install with `uv sync --extra visualize`. |

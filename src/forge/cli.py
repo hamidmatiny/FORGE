@@ -22,35 +22,11 @@ app = typer.Typer(
 )
 console = Console(stderr=True)
 
-KNOWN_GAPS_PATH = Path("KNOWN_GAPS.md")
-
-# Phase assignments for commands not yet implemented.
-PHASE_MAP: dict[str, int] = {
-    "visualize": 10,
-}
-
 
 def _version_callback(value: bool) -> None:
     if value:
         console.print(f"forge {__version__}")
         raise typer.Exit()
-
-
-def _not_implemented(command: str, local: bool = False) -> None:
-    """Print and log a clear not-implemented message, then exit nonzero."""
-    phase = PHASE_MAP[command]
-    settings = get_settings()
-    log_cli_invocation(
-        command=command,
-        args={"local": local},
-        log_level=settings.log_level,
-    )
-    message = (
-        f"forge {command} is not implemented until Phase {phase}. "
-        f"See {KNOWN_GAPS_PATH} for details."
-    )
-    console.print(f"[red]Error:[/red] {message}", highlight=False)
-    raise typer.Exit(code=1)
 
 
 @app.callback()
@@ -787,10 +763,96 @@ def curate(
 
 @app.command()
 def visualize(
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            help="Output file path (.rrd for rerun, .mcap for mcap). Default under data/lake.",
+        ),
+    ] = None,
+    export_format: Annotated[
+        str,
+        typer.Option("--format", help="Export format: rerun or mcap."),
+    ] = "rerun",
+    decision_filter: Annotated[
+        str,
+        typer.Option("--decision-filter", help="Which pseudo_labels.decision to export."),
+    ] = "auto_accept",
     local: Annotated[bool, typer.Option("--local", help="Run in single-process mode.")] = False,
 ) -> None:
-    """Launch interactive review (rerun.io / Foxglove MCAP / FiftyOne)."""
-    _not_implemented("visualize", local=local)
+    """Export pseudo-labels for offline review (rerun.io RRD or Foxglove MCAP)."""
+    if not local:
+        console.print(
+            "[red]Error:[/red] Distributed (Ray) execution lands in Phase 9. Pass --local for now.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    if export_format not in ("rerun", "mcap"):
+        console.print(
+            f"[red]Error:[/red] Unknown format {export_format!r}. Use 'rerun' or 'mcap'.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    log_cli_invocation(
+        command="visualize",
+        args={
+            "output": str(output) if output is not None else None,
+            "format": export_format,
+            "decision_filter": decision_filter,
+            "local": local,
+        },
+        log_level=settings.log_level,
+    )
+
+    labels_path = settings.data_lake_root / "pseudo_labels.parquet"
+    if not labels_path.exists():
+        console.print(
+            f"[red]Error:[/red] {labels_path} not found. Run 'forge label' first.",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        if export_format == "rerun":
+            from forge.visualize.rerun_export import build_rerun_recording
+        else:
+            from forge.visualize.mcap_export import build_mcap_recording
+    except ImportError as exc:
+        console.print(
+            "[red]Error:[/red] forge visualize requires the 'visualize' extra "
+            "(rerun-sdk, mcap). Install with: uv sync --extra visualize",
+            highlight=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    from forge.schemas import PseudoLabelsTable
+
+    pseudo_labels = PseudoLabelsTable.read_parquet(str(labels_path))
+
+    if output is None:
+        suffix = ".rrd" if export_format == "rerun" else ".mcap"
+        output = settings.data_lake_root / f"visualize_export{suffix}"
+
+    if export_format == "rerun":
+        count = build_rerun_recording(
+            pseudo_labels,
+            output,
+            decision_filter=decision_filter,
+        )
+    else:
+        count = build_mcap_recording(
+            pseudo_labels,
+            output,
+            decision_filter=decision_filter,
+        )
+
+    console.print(
+        f"[green]OK[/green] wrote {count} objects ({export_format}) -> {output}",
+        highlight=False,
+    )
 
 
 if __name__ == "__main__":

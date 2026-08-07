@@ -31,8 +31,7 @@ nuScenes-mini (eval GT, never a pipeline input)
 [8] curate          --> LanceDB embedding index for near-duplicate / hard-example
       |                 search; final dataset export with lineage
       v
-[10] visualize       --> rerun.io + Foxglove MCAP scene playback, FiftyOne dataset
-                          review app
+[10] visualize       --> rerun.io .rrd + MCAP JSON export (offline files; FiftyOne deferred)
 
 Cross-cutting (Phase 9, no dedicated CLI verb):
   - Ray: local-multi-process distributed execution via `forge.distributed.run_distributed_map`,
@@ -82,8 +81,8 @@ appears once its phase is built and tested.
 | Distributed ML (PyTorch, Lightning, Ray) | **2–8 (training), 9 (Ray)** | PyTorch Lightning for detector training; Ray as the distributed execution backend (local multi-process, wired into detect2d's and detect3d's `--distributed` inference paths) |
 | Model data curation — Parquet (PyArrow, Daft, Pandas) | **1, 8 — ingest, curate** | Parquet lake built directly on PyArrow (via the `BaseTable` schema pattern); Daft/Pandas aren't actually used anywhere in the repo, see KNOWN_GAPS.md |
 | Python dev, CI (GitHub Actions), Docker | **0 — foundation** | Already in place: ruff, mypy strict, pytest ≥80% coverage, GH Actions matrix, Docker |
-| Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); Foxglove MCAP export (10) |
-| Data viz: OpenGL/three.js, foxglove, FiftyOne, Tableau | **10 — visualize** | rerun.io (OpenGL-backed) + Foxglove MCAP + FiftyOne review app |
+| Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); MCAP JSON export (10) |
+| Data viz: OpenGL/three.js, foxglove, FiftyOne, Tableau | **10 — visualize** | rerun.io `.rrd` export (OpenGL-backed viewer offline) + MCAP JSON export; FiftyOne not built (see KNOWN_GAPS.md) |
 | Cloud dev: Terraform, AWS (S3, Athena, Lambda, etc.) | **9 — infra** | Terraform-provisioned S3 lake + Glue/Athena catalog + a real Lambda (S3-upload validator → SQS), applied manually/out-of-band |
 | Cloud orchestration, model inference orchestration | **9 — infra** | Ray distributed execution across stages |
 | Guidelines/standards, technical leadership | **11 — productionization** | Runbook + engineering-bar docs, same pattern as the sibling repos |
@@ -102,7 +101,7 @@ appears once its phase is built and tested.
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Not started |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | Not started |
 | 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda (no CLI verb) | Ray (local, wired into detect2d + detect3d) + Lambda done; Glue/Athena has one representative table; ECS worker, Ray for track/fuse/label/evaluate/curate still open |
-| 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | Not started |
+| 10 | `forge visualize` — rerun.io RRD + MCAP JSON export | Done (FiftyOne deferred) |
 | 11 | Productionization — runbook, demo script, engineering-bar docs | Not started |
 
 See `docs/schemas.md` for the current Parquet table contracts and `KNOWN_GAPS.md` for

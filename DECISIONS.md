@@ -881,3 +881,69 @@ real CLI after the refactor (8 detections from the fixture, unchanged
 from every prior phase's check). `track`/`fuse`/`label`/`evaluate`/
 `curate` still don't have a `--distributed` flag — tracked in
 KNOWN_GAPS.md, not implied done by this extension.
+
+## Phase 10 — Visualization (2026-08-06)
+
+### ADR-028: Headless file export instead of spawning viewers
+
+**Context:** Phase 10 names rerun.io, Foxglove MCAP, and FiftyOne. CI and
+the development sandbox have no display; spawning a GUI viewer would fail
+or hang in automation.
+
+**Decision:** `forge visualize` writes `.rrd` or `.mcap` files only. A human
+opens them locally with `rerun` or Foxglove Studio. No FiftyOne integration
+in this pass — tracked explicitly in KNOWN_GAPS.md.
+
+**Consequences:** Tests verify file bytes (`rerun rrd verify` subprocess)
+rather than pixel-level viewer behavior.
+
+### ADR-029: One entity path per frame, not per track
+
+**Context:** `tracks.parquet` exists since Phase 4, but pseudo-labels are
+scored frame-by-frame in Phase 6 without carrying `track_id` through export.
+
+**Decision:** Rerun logs all boxes for a timestamp under
+`scenes/{scene_id}/boxes` in one `Boxes3D` call. No join to
+`tracks.parquet` for persistent entity IDs across frames.
+
+**Consequences:** Reviewers see per-frame 3D boxes with labels, not linked
+multi-frame object trajectories in rerun's entity tree.
+
+### ADR-030: MCAP plain JSON schema, not Foxglove native types
+
+**Context:** Foxglove's native visualization expects well-known schemas such
+as `foxglove.SceneUpdate`. Implementing those fully is more than a thin
+export wrapper.
+
+**Decision:** MCAP messages use `json` encoding with a minimal JSON-schema
+stub and a `{scene_id, timestamp_us, objects[]}` payload per frame.
+
+**Consequences:** Files are valid MCAP and human-readable; Foxglove won't
+auto-render 3D primitives without a custom extension.
+
+### ADR-031: Exclude camera_only from rerun, keep in MCAP
+
+**Context:** `camera_only` pseudo-labels use sentinel `[0,0,0]` 3D geometry
+(see curate/evaluate for the same reasoning).
+
+**Decision:** Rerun export skips them entirely. MCAP export retains them
+because `bbox_xyxy` is still meaningful for 2D review.
+
+**Consequences:** Object counts differ by design between `--format rerun`
+and `--format mcap` for the same input — verified in manual CLI testing.
+
+### Fix: RRD footer missing until RecordingStream flush + disconnect
+
+**Context:** First implementation called `rr.save(path)` after logging and
+returned immediately. In rerun-sdk 0.35.0, `rerun rrd verify` on that file
+in the same process failed with `Missing RRD footer / no RRD manifests`.
+Global `rr.init(..., init_logging=False)` also left recording disabled under
+pytest (save ignored with "Rerun is disabled").
+
+**Decision:** Use an explicit `RecordingStream`: `save(path)` before logging,
+then `flush()` and `disconnect()` before returning. Confirmed against the
+installed 0.35.0 API (`help(rerun.RecordingStream.flush)`), not docs alone.
+
+**Consequences:** `test_rerun_export_file_verifies_with_rerun_cli` passes
+without relying on process exit to finalize the file. MCAP path separately
+required `Writer.start()` before messages (mcap 1.4.0).
