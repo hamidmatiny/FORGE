@@ -61,7 +61,7 @@ mapping of each phase to the requirement it's built to satisfy.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | ✅ |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | ✅ |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | ✅ |
-| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda | 🟡 Ray (local) + Lambda done |
+| 9 | Distributed & cloud infra — Ray, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS | 🟡 Ray (local) + Lambda + EventBridge + Step Functions + ECS done |
 | 10 | `forge visualize` — rerun.io, Foxglove MCAP, FiftyOne | ✅ |
 | 11 | Productionization — runbook, demo script | ✅ |
 
@@ -209,11 +209,12 @@ near-duplicate is flagged with `duplicate_of_id` rather than dropped, so
 the decision stays auditable. Never dedups across scenes or classes, even
 at identical coordinates. See `PHASE_8_COMPLETION.md`.
 
-## Infrastructure (Phase 9, partial — Ray + Lambda done, ECS/rest of Glue-Athena open)
+## Infrastructure (Phase 9, partial — Ray + Lambda + EventBridge + Step Functions + ECS done, Ray-on-other-stages/rest-of-Glue-Athena open)
 
 ```bash
 uv sync --extra detect2d --extra detect3d --extra aws --dev
 uv run pytest tests/test_distributed.py tests/test_lambda_ingest_trigger.py -v
+python3 scripts/validate_state_machine.py
 
 # distributed inference (local Ray, no cluster) instead of --local
 forge detect2d --mode infer --checkpoint <ckpt> --images-root <dir> --distributed
@@ -231,13 +232,19 @@ cost-safety policy as everywhere else).
 
 `infra/lambda/ingest_trigger/handler.py`: an S3-upload-triggered Lambda
 that validates uploads against the nuScenes-devkit layout and publishes
-valid ones to SQS for a downstream Ray/ECS ingest worker to consume —
-Lambda handles the lightweight "notify something happened" layer, never
-the actual pipeline work (execution time/memory limits make it unsuitable
-for that). `infra/terraform/`: the S3 buckets, SQS queue, IAM role, Lambda
-wiring, and a Glue/Athena catalog (one representative table,
-`pseudo_labels`) — deployed out-of-band only, never applied in CI,
-matching every sibling repo's cost-safety policy. See
+valid ones to both SQS and a custom EventBridge bus. The EventBridge
+event triggers a Step Functions state machine
+(`infra/terraform/step_functions.tf`) that chains all eight pipeline
+stages — ingest through visualize — as `ecs:runTask.sync` calls against
+one shared ECS Fargate task definition (`infra/terraform/ecs.tf`), each
+overriding the container command to run the matching `forge` CLI
+subcommand. Lambda still handles only the lightweight "notify something
+happened" layer; EventBridge → Step Functions → ECS handle the actual
+orchestration and work. `infra/terraform/`: the S3 buckets, SQS queue,
+EventBridge bus/rule, Step Functions state machine, ECS cluster/task
+definition, IAM roles, Lambda wiring, and a Glue/Athena catalog (one
+representative table, `pseudo_labels`) — deployed out-of-band only, never
+applied in CI, matching every sibling repo's cost-safety policy. See
 `PHASE_9_COMPLETION.md`.
 
 ## Visualization

@@ -1,14 +1,15 @@
-# Phase 9 Completion — Infrastructure (partial: Ray, Lambda, Glue/Athena)
+# Phase 9 Completion — Infrastructure (partial: Ray, Lambda, Glue/Athena, EventBridge, Step Functions, ECS)
 
 ## Scope
 
 Phase 9 is infrastructure, not a `forge` CLI command: Ray distributed
 execution mode, and Terraform-provisioned AWS (S3 lake + Glue/Athena
-catalog + Lambda, added mid-phase — part of the same cloud-infrastructure
-requirement bucket as S3/Athena in `ARCHITECTURE.md`'s requirement
-coverage map). **This is still a partial phase completion** — labeled 🟡
-in `README.md`'s phase table, not ✅. What's built and what's still open
-are both listed explicitly below.
+catalog + Lambda + EventBridge + Step Functions + ECS, added across three
+rounds — part of the same cloud-infrastructure requirement bucket as
+S3/Athena in `ARCHITECTURE.md`'s requirement coverage map). **This is
+still a partial phase completion** — labeled 🟡 in `README.md`'s phase
+table, not ✅. What's built and what's still open are both listed
+explicitly below.
 
 ## What was built
 
@@ -49,24 +50,56 @@ are both listed explicitly below.
   lake tables — the rest is the identical mechanical pattern, documented
   as follow-up in KNOWN_GAPS.md, not built out this round.
 
+### EventBridge + Step Functions + ECS (this round)
+
+- **`infra/terraform/ecs.tf`** — one ECS Fargate cluster, one shared
+  `forge-pipeline` task definition (execution role, task role scoped to
+  read the raw bucket + read/write the processed lake, CloudWatch
+  logging). No per-stage task definitions — every pipeline stage runs
+  the same `forge` CLI image, differentiated only by the command Step
+  Functions overrides at `RunTask` time. See DECISIONS.md ADR-035.
+- **`infra/terraform/step_functions.tf`** — a state machine chaining all
+  eight pipeline stages (ingest → detect2d → detect3d → fuse → label →
+  evaluate → curate → visualize) as `ecs:runTask.sync` Task states, each
+  catching failures into a `PipelineFailed` state. Generated from a single
+  `local.forge_pipeline_stages` list via HCL's `for`/`merge()` — verified
+  structurally correct (every `Next`/`Catch`/`StartAt` reference
+  resolves) by the new `scripts/validate_state_machine.py`, since no
+  AWS-official ASL validator package exists on PyPI (checked before
+  writing this).
+- **`infra/terraform/eventbridge.tf`** — a custom event bus
+  (`forge-events-<env>`), a rule matching the Lambda's exact published
+  event shape, and a target starting the state machine.
+- **`infra/lambda/ingest_trigger/handler.py`** — now publishes to *both*
+  SQS (unchanged) and EventBridge (new) on every valid upload, with
+  identical payloads. This closes the "SQS queue has no consumer" gap
+  from the prior round — EventBridge/Step Functions is the real consumer
+  now, chosen over the originally-planned custom polling worker because
+  Step Functions' native ECS integration makes a bespoke poller
+  redundant. See DECISIONS.md ADR-034.
+- **New test coverage**: `tests/test_lambda_ingest_trigger.py` now mocks
+  both the SQS and EventBridge boto3 clients (distinguished by service
+  name), with dedicated tests for the EventBridge entry's shape and that
+  both destinations receive identical payloads.
+
 ## Verified before commit
 
 ```
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src/forge                              # strict, 52 source files, 0 errors
+uv run mypy src/forge                              # strict, 0 errors
 uv run mypy infra/lambda/ingest_trigger/handler.py  # strict, 0 errors
-uv run pytest -q                                     # 169 passed, 90.37% coverage (threshold 80%)
+uv run pytest -q                                     # see commit for exact numbers
 ```
 
-Plus: all 6 `.tf` files (including the new `glue_athena.tf`) parsed
-successfully with `python-hcl2`. Manually ran the full `forge ingest` →
-`detect2d --mode train` → `detect2d --mode infer --local` sequence
-end-to-end after the `run_inference` refactor to confirm the sequential
-path still works identically (300 detections from the fixture, same as
-every prior phase's manual check). Manually ran `--distributed` through
-the real CLI too, confirming the same crash signature as the isolated
-Ray diagnostics — consistent evidence, not a code-path-specific issue.
+Plus: every `.tf` file (9 total, including the three new ones) parsed
+successfully with `python-hcl2`. The Step Functions ASL definition's
+`locals`-block logic was independently re-simulated in Python (not just
+trusted from HCL syntax validity) to confirm the generated state chain has
+no dangling references before `scripts/validate_state_machine.py` was
+written as a permanent, reusable version of that same check. All 20
+Lambda tests (SQS + EventBridge) pass with a mocked boto3 client
+distinguishing the two service names.
 
 ## Post-completion fixes and extensions (found via real user testing)
 
@@ -104,14 +137,27 @@ Ray diagnostics — consistent evidence, not a code-path-specific issue.
   above — but not here.)
 - The Glue catalog covers `pseudo_labels` only, not the other ~9 lake
   tables.
-- Nothing consumes the Lambda's SQS queue yet — that's a Ray/ECS worker's
-  job, which doesn't exist.
-- The Lambda and Terraform infrastructure have never been deployed or
-  invoked against real AWS (`terraform apply` is never run here, by
-  policy) — only unit-tested with mocked boto3.
-- Terraform files are HCL-syntax-valid (`python-hcl2`), not
-  `terraform validate`-checked against the real AWS provider schema (no
-  `terraform` binary was available in the environment that built this).
+- Step Functions starts a pipeline run on *every* validated upload, not
+  once a whole dataset has finished landing — no completeness-tracking
+  design was built this round (a real design decision, not an oversight
+  — see DECISIONS.md ADR-034).
+- Step Functions' Task states have no retry policy for transient
+  ECS/Fargate failures — only genuine stage failures are caught (routed
+  to `PipelineFailed`).
+- `ecs.tf`'s task definition references a container image
+  (`var.forge_container_image`) that was never built or pushed to a
+  registry — a real deployment step outside this repo's cost-safety
+  policy.
+- None of the Lambda, EventBridge, Step Functions, or ECS infrastructure
+  has ever been deployed or invoked against real AWS (`terraform apply`
+  is never run here, by policy) — only unit-tested with mocked boto3
+  (Lambda) or structurally validated (Terraform/ASL).
+- Terraform files are HCL-syntax-valid (`python-hcl2`) and the ASL
+  definition is structurally valid (`scripts/validate_state_machine.py`),
+  not checked against the real AWS provider schema or the official
+  `aws stepfunctions validate-state-machine-definition` API — no
+  `terraform` binary or AWS-official ASL validator was available in the
+  environment that built this.
 
 ## Known gaps carried forward
 

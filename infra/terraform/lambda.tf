@@ -51,6 +51,12 @@ data "aws_iam_policy_document" "ingest_trigger_permissions" {
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.ingest_notifications.arn]
   }
+
+  statement {
+    sid       = "PublishPipelineTriggerEvents"
+    actions   = ["events:PutEvents"]
+    resources = [aws_cloudwatch_event_bus.forge.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "ingest_trigger" {
@@ -73,6 +79,7 @@ resource "aws_lambda_function" "ingest_trigger" {
   environment {
     variables = {
       INGEST_QUEUE_URL = aws_sqs_queue.ingest_notifications.url
+      EVENT_BUS_NAME    = aws_cloudwatch_event_bus.forge.name
     }
   }
 

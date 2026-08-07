@@ -977,3 +977,72 @@ commit message the same way prior doc-only corrections were — not silent edits
 
 **Consequences:** `RUNBOOK.md` becomes the operational index; completion-doc
 pytest counts are explicitly noted as point-in-time snapshots in the runbook.
+
+## Phase 9 (continued again) — EventBridge + Step Functions + ECS orchestration (2026-08-07)
+
+### ADR-034: EventBridge + Step Functions replaces the planned custom SQS-polling worker
+
+**Context:** Two prior Phase 9 rounds left a real, tracked gap: the Lambda
+publishes to an SQS queue nothing consumes (KNOWN_GAPS.md's "SQS queue has
+no consumer" row). The original plan for closing it was a bespoke Python
+worker polling that queue. Before building that, it's worth asking whether
+a purpose-built AWS orchestration service does the same job better —
+EventBridge + Step Functions is the standard AWS-native pattern for
+"something happened, now run a multi-step workflow," and Step Functions'
+native `ecs:runTask.sync` integration means no custom polling loop is
+needed at all.
+
+**Decision:** The Lambda now publishes to *both* SQS (unchanged, still
+useful for a simple consumer that just wants "list of pending files") and
+a new EventBridge custom event bus (`forge-events-<env>`). An EventBridge
+rule matches the Lambda's exact `Source`/`DetailType`
+(`forge.ingest`/`IngestUploadValidated`) and starts an execution of a new
+Step Functions state machine, which runs the full pipeline — ingest
+through visualize — as eight chained `ecs:runTask.sync` states against one
+shared ECS Fargate task definition (`ecs.tf`), each overriding the
+container command to run the matching `forge` CLI subcommand. This
+supersedes the originally-planned custom worker entirely — a hand-rolled
+polling loop would just be reimplementing what Step Functions already
+does natively, worse.
+
+**Consequences:** "SQS queue has no consumer" in KNOWN_GAPS.md is now only
+half-true — EventBridge *does* have a real consumer (the state machine);
+the SQS queue specifically still has none, which is fine, since it was
+always meant as an optional simpler alternative, not the primary trigger
+path. Every design decision in this addition is documented in ADR-035
+below. Like every other piece of Phase 9 infrastructure, none of this is
+ever `terraform apply`'d — it's real, structurally-verified HCL describing
+what *would* run, not something running.
+
+### ADR-035: One shared ECS task definition with per-stage command overrides, not eight task definitions
+
+**Context:** Eight pipeline stages (ingest, detect2d, detect3d, fuse,
+label, evaluate, curate, visualize) all run the exact same `forge` CLI
+image — only the subcommand and arguments differ. Defining eight nearly-
+identical `aws_ecs_task_definition` resources would be repetitive and a
+real maintenance risk (a change to CPU/memory/IAM would need updating in
+eight places).
+
+**Decision:** One task definition (`forge-pipeline`) with no baked-in
+command; each Step Functions Task state supplies its own
+`Overrides.ContainerOverrides[0].Command` (and a `FORGE_DATA_LAKE_ROOT`
+environment override sourced from the execution input via ASL's `.$`
+JSONPath substitution) at `RunTask` time. The state list is
+`local.forge_pipeline_stages` in `step_functions.tf`, generated into
+chained `Next`-linked states via a `for` expression + `merge()` — verified
+structurally correct (every `Next`/`Catch`/`StartAt` reference resolves,
+no terminal state has a dangling `Next`) by `scripts/validate_state_machine.py`,
+since no AWS-official Amazon States Language validator package was
+available in the environment that built this (checked pip; none exist) —
+this was never run against the real `aws stepfunctions
+validate-state-machine-definition` API, which would be a stronger check.
+
+**Consequences:** Adding, removing, or reordering a pipeline stage is a
+one-line change to `local.forge_pipeline_stages`, not a new Terraform
+resource. The retry behavior is left at ASL defaults (no automatic retry
+on transient ECS/Fargate failures) — a real gap noted in KNOWN_GAPS.md,
+not silently assumed handled. `scripts/validate_state_machine.py`
+duplicates the stage list from `step_functions.tf` by hand (no shared
+source of truth between HCL and Python, since no `terraform` binary was
+available to evaluate the `.tf` file's `locals` block directly) — a real,
+documented maintenance risk if the two drift.

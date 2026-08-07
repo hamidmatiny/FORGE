@@ -27,3 +27,18 @@ output "athena_workgroup_name" {
   description = "Athena workgroup for forge lake queries."
   value       = aws_athena_workgroup.forge.name
 }
+
+output "ecs_cluster_arn" {
+  description = "ECS Fargate cluster the pipeline's stages run in."
+  value       = aws_ecs_cluster.forge.arn
+}
+
+output "step_functions_state_machine_arn" {
+  description = "State machine orchestrating ingest through visualize."
+  value       = aws_sfn_state_machine.forge_pipeline.arn
+}
+
+output "eventbridge_bus_name" {
+  description = "Custom event bus the ingest-trigger Lambda publishes to."
+  value       = aws_cloudwatch_event_bus.forge.name
+}

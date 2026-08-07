@@ -39,12 +39,14 @@ Cross-cutting (Phase 9, no dedicated CLI verb):
     the same as before). Real Ray-cluster provisioning isn't built — this is local-CPU-core
     parallelism only, the same "no real cloud/GPU spend" policy as everywhere else.
   - Terraform: S3 raw-data + processed-lake buckets, Glue catalog database (one full table
-    definition, `pseudo_labels`, as a representative example), an Athena workgroup, and the
-    Lambda's own wiring — applied out-of-band only (never in CI)
+    definition, `pseudo_labels`, as a representative example), an Athena workgroup, an ECS
+    Fargate cluster + shared task definition, a Step Functions state machine chaining all
+    eight pipeline stages as ecs:runTask.sync calls, and an EventBridge bus/rule triggering
+    it — applied out-of-band only (never in CI)
   - Lambda: S3-upload-triggered validator that publishes valid nuScenes
-    uploads to SQS for a downstream Ray/ECS ingest worker to consume
-    (infra/lambda/ingest_trigger/) — Lambda handles the lightweight
-    "notify something happened" layer; Ray/ECS handle the actual work
+    uploads to both SQS and EventBridge (infra/lambda/ingest_trigger/) —
+    Lambda handles the lightweight "notify something happened" layer;
+    EventBridge → Step Functions → ECS handle the actual orchestration and work
 ```
 
 ## Why this shape
@@ -83,8 +85,8 @@ appears once its phase is built and tested.
 | Python dev, CI (GitHub Actions), Docker | **0 — foundation** | Already in place: ruff, mypy strict, pytest ≥80% coverage, GH Actions matrix, Docker |
 | Data ops: schema design, AWS storage, vector DB (LanceDB), MCAP | **1, 8, 10** | Versioned schemas (1); LanceDB dedup/search index (8); MCAP JSON export (10) |
 | Data viz: OpenGL/three.js, foxglove, FiftyOne, Tableau | **10 — visualize** | rerun.io `.rrd` export (OpenGL-backed viewer offline) + MCAP JSON export; FiftyOne not built (see KNOWN_GAPS.md) |
-| Cloud dev: Terraform, AWS (S3, Athena, Lambda, etc.) | **9 — infra** | Terraform-provisioned S3 lake + Glue/Athena catalog + a real Lambda (S3-upload validator → SQS), applied manually/out-of-band |
-| Cloud orchestration, model inference orchestration | **9 — infra** | Ray distributed execution across stages |
+| Cloud dev: Terraform, AWS (S3, Athena, Lambda, etc.) | **9 — infra** | Terraform-provisioned S3 lake + Glue/Athena catalog + a real Lambda (S3-upload validator → SQS/EventBridge), applied manually/out-of-band |
+| Cloud orchestration, model inference orchestration | **9 — infra** | Ray distributed execution (local, detect2d + detect3d); EventBridge + Step Functions + ECS Fargate orchestrate the full pipeline as a chained state machine |
 | Guidelines/standards, technical leadership | **11 — productionization** | Runbook + engineering-bar docs, same pattern as the sibling repos |
 
 ## Build order
@@ -100,7 +102,7 @@ appears once its phase is built and tested.
 | 6 | `forge label` — active learning + pseudo-labeling, review queue | Done |
 | 7 | `forge evaluate` — GT scoring, MLflow/W&B logging | Done |
 | 8 | `forge curate` — LanceDB dedup/search, dataset export | Done |
-| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda (no CLI verb) | Partial — Ray (local, detect2d + detect3d) + Lambda + one-table Glue/Athena; ECS worker, remaining Glue tables, Ray on other stages still open |
+| 9 | Distributed & cloud infra — Ray execution mode, Terraform S3/Athena/Lambda/EventBridge/StepFunctions/ECS (no CLI verb) | Partial — Ray (local, detect2d + detect3d) + Lambda + EventBridge + Step Functions + ECS + one-table Glue/Athena; remaining Glue tables, Ray on other stages, real deployment/retry policy still open |
 | 10 | `forge visualize` — rerun.io RRD + MCAP JSON export | Done (FiftyOne deferred) |
 | 11 | Productionization — runbook, demo script | Done |
 

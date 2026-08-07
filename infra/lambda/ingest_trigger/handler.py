@@ -1,11 +1,16 @@
-"""S3-upload-triggered Lambda: validate nuScenes file layout, notify SQS.
+"""S3-upload-triggered Lambda: validate nuScenes file layout, notify SQS + EventBridge.
 
 Deployed via Terraform (see ../../terraform/lambda.tf), triggered on
 ``s3:ObjectCreated:*`` for the raw-data bucket. Deliberately lightweight —
 Lambda has execution time/memory limits unsuitable for the actual ML
 pipeline work (that's what Ray/ECS are for, per Phase 9's other half).
 This function's only job is: does this uploaded file look like a real
-nuScenes file, and if so, tell a downstream queue about it.
+nuScenes file, and if so, tell downstream consumers about it — via SQS
+(a plain queue a simple consumer could poll) and via EventBridge (which
+triggers the Step Functions pipeline orchestration, see
+../../terraform/step_functions.tf and eventbridge.tf). Both are notified
+on every valid upload; nothing here decides whether a whole dataset is
+"complete" — that's the state machine's job (see ADR-034).
 
 Not part of the ``forge`` package — Lambda deployment packages are
 typically standalone, zip-deployed modules, not full installable
@@ -31,10 +36,13 @@ import boto3
 _METADATA_TABLE_RE = re.compile(r"^(?P<root>.*?)v\d+\.\d+(-\w+)?/[\w_]+\.json$")
 _SENSOR_FILE_RE = re.compile(r"^(?P<root>.*?)(samples|sweeps)/[\w_]+/.+$")
 
+_EVENT_SOURCE = "forge.ingest"
+_EVENT_DETAIL_TYPE = "IngestUploadValidated"
+
 
 @dataclass(frozen=True)
 class IngestNotification:
-    """The message published to SQS for a validated upload."""
+    """The message published to SQS and EventBridge for a validated upload."""
 
     bucket: str
     key: str
@@ -91,13 +99,19 @@ def build_notification(
 
 
 def lambda_handler(event: dict[str, Any], context: object) -> dict[str, int]:
-    """Entry point: validate each S3 record in the event, publish valid ones to SQS.
+    """Entry point: validate each S3 record, publish valid ones to SQS + EventBridge.
+
+    EventBridge publication triggers the Step Functions pipeline (via the
+    rule in ../../terraform/eventbridge.tf); SQS remains available for a
+    simpler polling consumer. Both get the identical notification payload.
 
     Returns:
         Summary counts: ``{"processed": N, "published": M, "skipped": K}``.
     """
     queue_url = os.environ["INGEST_QUEUE_URL"]
+    event_bus_name = os.environ["EVENT_BUS_NAME"]
     sqs = boto3.client("sqs")
+    events_client = boto3.client("events")
 
     processed = 0
     published = 0
@@ -116,7 +130,19 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, int]:
             continue
 
         notification = build_notification(bucket, key, size, event_time)
-        sqs.send_message(QueueUrl=queue_url, MessageBody=json.dumps(asdict(notification)))
+        payload = json.dumps(asdict(notification))
+
+        sqs.send_message(QueueUrl=queue_url, MessageBody=payload)
+        events_client.put_events(
+            Entries=[
+                {
+                    "Source": _EVENT_SOURCE,
+                    "DetailType": _EVENT_DETAIL_TYPE,
+                    "Detail": payload,
+                    "EventBusName": event_bus_name,
+                }
+            ]
+        )
         published += 1
 
     return {"processed": processed, "published": published, "skipped": skipped}
