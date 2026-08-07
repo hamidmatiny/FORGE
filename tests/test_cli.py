@@ -7,6 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from forge import __version__
 from forge.cli import app
 
 runner = CliRunner()
@@ -63,7 +64,7 @@ def test_help_lists_all_stage_commands() -> None:
 def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "forge 0.1.0" in _plain(result.output)
+    assert f"forge {__version__}" in _plain(result.output)
 
 
 def test_ingest_requires_input_dir() -> None:

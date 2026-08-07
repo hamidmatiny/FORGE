@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from forge import __version__
 from forge.logging import configure_logging, get_logger, log_cli_invocation
 
 
@@ -23,5 +24,5 @@ def test_log_cli_invocation_emits_json(capsys: pytest.CaptureFixture[str]) -> No
     assert payload["event"] == "cli_invocation"
     assert payload["command"] == "ingest"
     assert payload["args"] == {"local": True}
-    assert payload["version"] == "0.1.0"
+    assert payload["version"] == __version__
     assert "git_sha" in payload
