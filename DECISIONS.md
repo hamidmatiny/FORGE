@@ -1046,3 +1046,30 @@ duplicates the stage list from `step_functions.tf` by hand (no shared
 source of truth between HCL and Python, since no `terraform` binary was
 available to evaluate the `.tf` file's `locals` block directly) — a real,
 documented maintenance risk if the two drift.
+
+### Fix: one-command full verification script (`scripts/check.sh`)
+
+**Context:** Found via real user testing, again — running `mypy`/`pytest`
+with only a partial extra installed (e.g. `uv sync --extra aws --dev`)
+produces confusing failures (missing `numpy`/`ray`/`mcap`, 0% coverage)
+that are entirely expected (see the long-standing "Partial-extras
+mypy/pytest runs" row in `KNOWN_GAPS.md`) but easy to trip over when
+piecing the verification commands together by hand — this has now
+happened multiple times across this project's real testing history, not
+a one-off.
+
+**Decision:** `scripts/check.sh` runs the full sequence in the right
+order every time: `uv sync --all-extras --dev`, ruff, both mypy
+invocations, pytest, the Terraform HCL syntax check (auto-installing
+`python-hcl2` if missing — not `hcl2` or `hcl`, both different, wrong
+packages on PyPI, a real mistake made once while testing this), and
+`scripts/validate_state_machine.py`. `RUNBOOK.md` and `README.md` both
+point to it as the one command to run instead of the individual pieces.
+
+**Consequences:** Verified every step except `uv sync --all-extras --dev`
+itself in the environment that built this — that step needs the full
+CUDA toolkit (multiple GB), which this sandbox's disk can't hold (the
+same limitation ADR-013 documented from the very first phase this project
+built). Every other step (ruff, both mypy runs, pytest, HCL validation,
+state machine validation) was run for real against an already-populated
+environment and confirmed correct.

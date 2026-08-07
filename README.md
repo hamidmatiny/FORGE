@@ -72,6 +72,8 @@ uv sync --all-extras --dev
 ./scripts/demo.sh
 ```
 
+Full check suite (lint/type/test/Terraform), one command: `./scripts/check.sh`.
+
 See [RUNBOOK.md](RUNBOOK.md) for setup, per-stage commands, and troubleshooting.
 
 ## CLI

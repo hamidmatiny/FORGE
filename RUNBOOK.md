@@ -25,6 +25,21 @@ uv run forge --help
 running one CLI command, but **not** for `mypy src/forge` or full `pytest` — see
 [KNOWN_GAPS.md](KNOWN_GAPS.md) (partial-extras coverage gap).
 
+**One command for the full check suite, in the right order, every time:**
+
+```bash
+./scripts/check.sh
+```
+
+Runs `uv sync --all-extras --dev`, ruff, both mypy invocations (`src/forge` and the
+Lambda handler — they're separate on purpose, see `KNOWN_GAPS.md`), pytest, the
+Terraform HCL syntax check, and the Step Functions structural validation, in that
+order. Existed because piecing these commands together by hand has caused confusing
+(but expected) partial-extras failures multiple times across this project's
+history — this is the one command that always does it right. The Terraform check
+needs `python-hcl2` (not `hcl2` or `hcl` — both different, wrong packages on PyPI);
+the script installs it automatically if missing.
+
 Default lake root: `FORGE_DATA_LAKE_ROOT=data/lake` (override with env var).
 
 ## Run the full pipeline (demo)
